@@ -4,6 +4,8 @@ import pytesseract
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 app = FastAPI(title="FinTrace API")
 
 # Configure CORS so your frontend (running on port 5173) can access the API
@@ -36,7 +38,7 @@ async def upload_receipt(file: UploadFile = File(...)):
         raw_text = pytesseract.image_to_string(image)
         
         # 5. Return the raw text directly to the frontend [cite: 61]
-        return {"raw_text": raw_text}
+        return {"text": raw_text}
         
     except Exception as e:
         # In case something goes wrong internally, catch it and return a 500 error
