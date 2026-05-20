@@ -25,7 +25,7 @@ function App() {
 
     try {
       // Points to your local FastAPI server port (adjust to 8000 or your specific backend port)
-      const response = await fetch('http://127.0.0.1:8000/upload', {
+      const response = await fetch('http://127.0.0.1:8000/api/upload', {
         method: 'POST',
         body: formData,
       });
