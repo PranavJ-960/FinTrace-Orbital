@@ -8,7 +8,6 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 
 app = FastAPI(title="FinTrace API")
 
-# Configure CORS so your frontend (running on port 5173) can access the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -17,29 +16,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def preprocess_image(image: np.ndarray) -> np.ndarray:
+    # Scale up (2x zoom)
+    image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    
+    # Grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Bilateral Filter (Smooths noise but keeps text sharp)
+    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    
+    # Adaptive Thresholding
+    thresh = cv2.adaptiveThreshold(
+        filtered, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY, 15, 8
+    )
+    
+
+    kernel = np.ones((2, 2), np.uint8)
+    processed = cv2.dilate(thresh, kernel, iterations=1)
+    
+    return processed
+
 @app.post("/api/upload")
 async def upload_receipt(file: UploadFile = File(...)):
-    # 1. Validate that the uploaded file is actually an image
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
-    
+
     try:
-        # 2. Read file contents into bytes
         contents = await file.read()
-        
-        # 3. Convert bytes to a numpy array and decode using OpenCV
         nparr = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if image is None:
             raise HTTPException(status_code=400, detail="Failed to decode image.")
-        
-        # 4. Extract raw text from the image using Tesseract [cite: 61, 77]
-        raw_text = pytesseract.image_to_string(image)
-        
-        # 5. Return the raw text directly to the frontend [cite: 61]
+
+        processed = preprocess_image(image)
+
+
+        custom_config = r'--psm 6'
+        raw_text = pytesseract.image_to_string(processed, config=custom_config)
+
         return {"text": raw_text}
-        
+
     except Exception as e:
-        # In case something goes wrong internally, catch it and return a 500 error
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
