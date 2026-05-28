@@ -64,7 +64,7 @@ function App() {
     if (!receipt) return;
 
     try {
-      // Milestone 3: This pushes the manually cleaned text block straight to your database
+      // Milestone 2: This will push the manually cleaned text block to PostgreSQL
       console.log('Saving cleaned raw text to database:', receipt.rawText);
       
       alert('Receipt text updated and saved successfully!');
