@@ -334,13 +334,13 @@ http://localhost:5173
 ## 8.0 Application Walkthrough
 
 ### Step 1 — Sign In
-![Sign In](./docs/screenshots/Clerk_Sign_In_Page.png)
+![Sign In](./Docs/Screenshots/Clerk_Sign_In_Page.png)
 
 ### Step 2 — Upload Receipt
-![Upload](./docs/screenshots/Working_Frontend_UI.png)
+![Upload](./Docs/Screenshots/Working_Frontend_UI.png)
 
 ### Step 3 — Review & Correct OCR Output
-![OCR Editor](./docs/screenshots/Editable_Text_Area.png)
+![OCR Editor](./Docs/Screenshots/Editable_Text_Area.png)
 
 ## 8.1 What Was Built
 
@@ -579,11 +579,11 @@ Dilation reconnects fragmented text strokes so Tesseract recognises them as cont
 
 **Before**
 
-![Before preprocessing](./docs/screenshots/before.png)
+![Before preprocessing](./Docs/Screenshots/before.png)
 
 **After**
 
-![After preprocessing](./docs/screenshots/after.png)
+![After preprocessing](./Docs/Screenshots/after.png)
 
 ---
 
@@ -831,7 +831,7 @@ Users can directly:
 
 This provides robustness when OCR accuracy is imperfect.
 
-![OCR Correction Interface](./docs/screenshots/Editable_Text_Area.png)
+![OCR Correction Interface](./Docs/Screenshots/Editable_Text_Area.png)
 
 ---
 
