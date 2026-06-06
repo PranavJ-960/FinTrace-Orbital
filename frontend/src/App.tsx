@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignIn, UserButton, useUser } from '@clerk/clerk-react';
 
 interface ReceiptData {
   rawText: string;
 }
 
 function App() {
+  const { user } = useUser();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  
-  // State to hold the editable raw text block
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
 
@@ -30,7 +29,7 @@ function App() {
     setIsEditing(false);
 
     const formData = new FormData();
-    formData.append('file', selectedFile); 
+    formData.append('file', selectedFile);
 
     try {
       const response = await fetch('http://127.0.0.1:8000/api/upload', {
@@ -43,14 +42,10 @@ function App() {
       }
 
       const data = await response.json();
-      
-      // Captures string output from your backend pipeline
       const extractedText = data.text || (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
 
-      setReceipt({
-        rawText: extractedText
-      });
-      setIsEditing(true); 
+      setReceipt({ rawText: extractedText });
+      setIsEditing(true);
 
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -61,22 +56,33 @@ function App() {
   };
 
   const handleSave = async () => {
-    if (!receipt) return;
+    if (!receipt || !user) return;
 
     try {
-      // Milestone 2: This will push the manually cleaned text block to PostgreSQL
-      console.log('Saving cleaned raw text to database:', receipt.rawText);
-      
-      alert('Receipt text updated and saved successfully!');
-      setIsEditing(false); 
+      const response = await fetch('http://127.0.0.1:8000/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          raw_text: receipt.rawText,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Save failed');
+
+      const data = await response.json();
+      alert(`Receipt saved! ID: ${data.receipt_id}`);
+      setIsEditing(false);
+
     } catch (error) {
       console.error('Error saving receipt:', error);
+      alert('Error: Could not save receipt.');
     }
   };
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '650px', margin: '0 auto' }}>
-      
+
       {/* SCENARIO A: Signed Out */}
       <SignedOut>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '50px' }}>
@@ -92,16 +98,16 @@ function App() {
           <h2>FinTrace — Receipt Text Editor</h2>
           <UserButton />
         </header>
-        
+
         <p>Upload a receipt image to view and directly correct the text output pipeline.</p>
-        
+
         {/* Upload Container */}
         <div style={{ margin: '20px 0', border: '1px dashed #ccc', padding: '20px', borderRadius: '8px' }}>
           <input type="file" accept="image/*" onChange={handleFileChange} />
           {selectedFile && (
-            <button 
-              onClick={handleUpload} 
-              disabled={loading} 
+            <button
+              onClick={handleUpload}
+              disabled={loading}
               style={{ marginLeft: '10px', padding: '6px 12px', cursor: 'pointer' }}
             >
               {loading ? 'Processing OCR...' : 'Upload & Parse'}
@@ -116,17 +122,17 @@ function App() {
             <p style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}>
               Click anywhere inside the box below to edit words, fix numbers, or delete messy lines directly.
             </p>
-            
-            <textarea 
+
+            <textarea
               rows={18}
-              value={receipt.rawText} 
+              value={receipt.rawText}
               onChange={(e) => setReceipt({ rawText: e.target.value })}
-              style={{ 
-                width: '100%', 
-                padding: '12px', 
-                borderRadius: '6px', 
-                border: '1px solid #bbb', 
-                fontFamily: 'monospace', 
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '6px',
+                border: '1px solid #bbb',
+                fontFamily: 'monospace',
                 fontSize: '14px',
                 lineHeight: '1.5',
                 whiteSpace: 'pre-wrap',
@@ -136,30 +142,30 @@ function App() {
             />
 
             <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
-              <button 
+              <button
                 onClick={handleSave}
-                style={{ 
-                  backgroundColor: '#0070f3', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '10px 20px', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer', 
-                  fontWeight: 'bold' 
+                style={{
+                  backgroundColor: '#0070f3',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
                 }}
               >
                 Confirm & Save Changes
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setIsEditing(false)}
-                style={{ 
-                  backgroundColor: '#fff', 
-                  color: '#333', 
-                  border: '1px solid #ccc', 
-                  padding: '10px 15px', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer' 
+                style={{
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  border: '1px solid #ccc',
+                  padding: '10px 15px',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
                 }}
               >
                 Cancel

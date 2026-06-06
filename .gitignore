@@ -1,3 +1,11 @@
-#Virtual Environments
+# Virtual Environments
 **/venv/
 **/__pycache__/
+**/.env
+
+# Node
+node_modules/
+dist/
+
+# Misc
+.DS_Store
