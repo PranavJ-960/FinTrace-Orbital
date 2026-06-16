@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SignedIn, SignedOut, SignIn, UserButton, useUser } from '@clerk/clerk-react';
+import SpendingDashboard from './components/SpendingDashboard';
 
 interface ReceiptData {
   rawText: string;
@@ -184,6 +185,20 @@ function App() {
           >
             History
           </button>
+          <button
+            onClick={() => setView('dashboard')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '4px',
+              border: 'none',
+              backgroundColor: view === 'dashboard' ? '#0070f3' : '#eee',
+              color: view === 'dashboard' ? 'white' : '#333',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Dashboard
+          </button>
         </div>
 
         {view === 'upload' && (
@@ -365,6 +380,12 @@ function App() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {view === 'dashboard' && (
+          <div>
+            <SpendingDashboard userId={user?.id || ''} />
           </div>
         )}
       </SignedIn>

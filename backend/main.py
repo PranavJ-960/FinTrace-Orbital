@@ -366,3 +366,87 @@ async def get_receipts(user_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+
+
+@app.get("/api/spending-summary")
+async def get_spending_summary(user_id: str, months: int = 6):
+    """Return aggregated spending data for the given user over the past `months` months.
+    Response schema:
+      {
+        'totals': {'overall': float, 'by_category': {category: float}},
+        'monthly': [ {'month': 'YYYY-MM', 'total': float, 'by_category': {category: float}}, ... ],
+        'categories': [str,...]
+      }
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Aggregate monthly totals per category
+        cur.execute(
+            """
+            SELECT to_char(date_trunc('month', r.created_at), 'YYYY-MM') AS month,
+                   elem->>'category' AS category,
+                   SUM((elem->>'price')::numeric) AS total
+            FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
+            WHERE r.user_id = %s
+              AND r.created_at >= (date_trunc('month', current_date) - INTERVAL %s)
+            GROUP BY month, category
+            ORDER BY month;
+            """,
+            (user_id, f"{months} months")
+        )
+
+        rows = cur.fetchall()
+
+        monthly = {}
+        categories_set = set()
+        for month, category, total in rows:
+            categories_set.add(category)
+            monthly.setdefault(month, { 'total': 0.0, 'by_category': {} })
+            monthly[month]['by_category'][category] = float(total)
+            monthly[month]['total'] += float(total)
+
+        monthly_list = []
+        for m in sorted(monthly.keys()):
+            monthly_list.append({
+                'month': m,
+                'total': round(monthly[m]['total'], 2),
+                'by_category': {k: round(v, 2) for k, v in monthly[m]['by_category'].items()}
+            })
+
+        # Overall total
+        cur.execute(
+            """
+            SELECT SUM((elem->>'price')::numeric) FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
+            WHERE r.user_id = %s;
+            """,
+            (user_id,)
+        )
+        overall_total_row = cur.fetchone()
+        overall_total = float(overall_total_row[0]) if overall_total_row and overall_total_row[0] is not None else 0.0
+
+        # Totals by category
+        cur.execute(
+            """
+            SELECT elem->>'category' AS category, SUM((elem->>'price')::numeric) AS total
+            FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
+            WHERE r.user_id = %s
+            GROUP BY category;
+            """,
+            (user_id,)
+        )
+        cat_rows = cur.fetchall()
+        by_category = { row[0]: float(row[1]) for row in cat_rows }
+
+        cur.close()
+        conn.close()
+
+        return {
+            'totals': { 'overall': round(overall_total, 2), 'by_category': {k: round(v, 2) for k, v in by_category.items()} },
+            'monthly': monthly_list,
+            'categories': sorted(list(categories_set)) or VALID_CATEGORIES
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
