@@ -19,12 +19,17 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
     if (!userId) return;
     setLoading(true);
     fetch(`http://127.0.0.1:8000/api/spending-summary?user_id=${encodeURIComponent(userId)}&months=${months}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load summary');
-        return r.json();
-      })
-      .then((json) => {
-        setData(json as SpendingSummary);
+      .then(async (r) => {
+        const text = await r.text();
+        if (!r.ok) {
+          throw new Error(`Failed to load summary (${r.status}): ${text}`);
+        }
+        try {
+          const json = JSON.parse(text);
+          setData(json as SpendingSummary);
+        } catch (e) {
+          throw new Error('Summary response was not valid JSON.');
+        }
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));

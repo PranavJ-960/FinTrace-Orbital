@@ -386,7 +386,7 @@ async def get_spending_summary(user_id: str, months: int = 6):
         cur.execute(
             """
             SELECT to_char(date_trunc('month', r.created_at), 'YYYY-MM') AS month,
-                   elem->>'category' AS category,
+                   COALESCE(elem->>'category', 'Other') AS category,
                    SUM((elem->>'price')::numeric) AS total
             FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
             WHERE r.user_id = %s
@@ -429,7 +429,8 @@ async def get_spending_summary(user_id: str, months: int = 6):
         # Totals by category
         cur.execute(
             """
-            SELECT elem->>'category' AS category, SUM((elem->>'price')::numeric) AS total
+            SELECT COALESCE(elem->>'category', 'Other') AS category,
+                   SUM((elem->>'price')::numeric) AS total
             FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
             WHERE r.user_id = %s
             GROUP BY category;
