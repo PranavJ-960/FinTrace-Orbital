@@ -45,6 +45,66 @@ const NAV_ITEMS: { id: View; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
 ];
 
+// Shared Clerk dark appearance — used on every Clerk component
+const clerkAppearance = {
+  variables: {
+    colorBackground: '#0f172a',
+    colorText: '#f1f5f9',
+    colorTextSecondary: '#94a3b8',
+    colorTextOnPrimaryBackground: '#ffffff',
+    colorPrimary: '#3b82f6',
+    colorInputBackground: '#1e293b',
+    colorInputText: '#f1f5f9',
+    colorNeutral: '#f1f5f9',
+    borderRadius: '10px',
+  },
+  elements: {
+    card: {
+      backgroundColor: '#0f172a',
+      border: '1px solid #1e293b',
+      boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+    },
+    headerTitle: { color: '#f1f5f9', fontWeight: '700' },
+    headerSubtitle: { color: '#94a3b8' },
+    formFieldLabel: { color: '#94a3b8', fontSize: '13px' },
+    formFieldInput: {
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      color: '#f1f5f9',
+    },
+    formFieldInputShowPasswordButton: { color: '#64748b' },
+    footerActionText: { color: '#64748b' },
+    footerActionLink: { color: '#3b82f6' },
+    identityPreviewText: { color: '#f1f5f9' },
+    identityPreviewEditButton: { color: '#3b82f6' },
+    formButtonPrimary: {
+      backgroundColor: '#2563eb',
+      color: '#ffffff',
+      fontWeight: '600',
+    },
+    dividerText: { color: '#475569' },
+    dividerLine: { backgroundColor: '#1e293b' },
+    socialButtonsBlockButton: {
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      color: '#f1f5f9',
+    },
+    socialButtonsBlockButtonText: { color: '#f1f5f9' },
+    socialButtonsBlockButtonArrow: { color: '#64748b' },
+    otpCodeFieldInput: {
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      color: '#f1f5f9',
+    },
+    alternativeMethodsBlockButton: {
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      color: '#f1f5f9',
+    },
+    badge: { backgroundColor: '#1e293b', color: '#64748b' },
+  },
+};
+
 function App() {
   const { user } = useUser();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -164,7 +224,8 @@ function App() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #020817; color: #f1f5f9; font-family: 'Inter', sans-serif; min-height: 100vh; }
-        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -200,9 +261,7 @@ function App() {
             <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f1f5f9', letterSpacing: '-0.02em' }}>FinTrace</h1>
             <p style={{ color: '#64748b', marginTop: 6, fontSize: 15 }}>Scan receipts. Track spending. Stay in control.</p>
           </div>
-          <SignIn routing="hash" appearance={{
-            variables: { colorBackground: '#0f172a', colorText: '#f1f5f9', colorPrimary: '#3b82f6', colorInputBackground: '#1e293b', colorInputText: '#f1f5f9' }
-          }} />
+          <SignIn routing="hash" appearance={clerkAppearance} />
         </div>
       </SignedOut>
 
@@ -218,7 +277,7 @@ function App() {
               <span style={{ fontSize: 22 }}>🧾</span>
               <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: '#f1f5f9' }}>FinTrace</span>
             </div>
-            <UserButton appearance={{ variables: { colorBackground: '#0f172a', colorText: '#f1f5f9' } }} />
+            <UserButton appearance={clerkAppearance} />
           </header>
 
           {/* Nav */}
@@ -294,7 +353,15 @@ function App() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       }}
                     >
-                      {loading && <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                      {loading && (
+                        <span style={{
+                          width: 16, height: 16,
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTop: '2px solid #fff',
+                          borderRadius: '50%', display: 'inline-block',
+                          animation: 'spin 0.7s linear infinite',
+                        }} />
+                      )}
                       {loading ? 'Processing OCR…' : 'Scan & Parse Receipt'}
                     </button>
                   )}
@@ -331,7 +398,14 @@ function App() {
                           display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
                         }}
                       >
-                        {reParsing && <span style={{ width: 10, height: 10, border: '1.5px solid #475569', borderTop: '1.5px solid #94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                        {reParsing && (
+                          <span style={{
+                            width: 10, height: 10,
+                            border: '1.5px solid #475569', borderTop: '1.5px solid #94a3b8',
+                            borderRadius: '50%', display: 'inline-block',
+                            animation: 'spin 0.7s linear infinite',
+                          }} />
+                        )}
                         {reParsing ? 'Re-parsing…' : '↻ Re-parse'}
                       </button>
                     </div>
@@ -414,7 +488,15 @@ function App() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       }}
                     >
-                      {saving && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                      {saving && (
+                        <span style={{
+                          width: 14, height: 14,
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTop: '2px solid #fff',
+                          borderRadius: '50%', display: 'inline-block',
+                          animation: 'spin 0.7s linear infinite',
+                        }} />
+                      )}
                       {saving ? 'Saving…' : 'Save Receipt'}
                     </button>
                     <button
@@ -491,7 +573,14 @@ function App() {
                           {r.parsed_items.map((item, i) => {
                             const cs = getCategoryStyle(item.category);
                             return (
-                              <tr key={i} className="receipt-row" style={{ borderBottom: i < r.parsed_items.length - 1 ? '1px solid #0f172a' : 'none', transition: 'background 0.1s' }}>
+                              <tr
+                                key={i}
+                                className="receipt-row"
+                                style={{
+                                  borderBottom: i < r.parsed_items.length - 1 ? '1px solid #0f172a' : 'none',
+                                  transition: 'background 0.1s',
+                                }}
+                              >
                                 <td style={{ padding: '9px 18px', fontSize: 13, color: '#cbd5e1' }}>{item.name}</td>
                                 <td style={{ padding: '9px 18px' }}>
                                   <span style={{
