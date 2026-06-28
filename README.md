@@ -5,7 +5,7 @@
 **Proposed Level of Achievement:** Apollo 11  
 **Programme:** NUS Orbital 2026  
 
-[![Status](https://img.shields.io/badge/Status-Milestone%201-green)](https://github.com/PranavJ-960/FinTrace-Orbital)
+[![Status](https://img.shields.io/badge/Status-Milestone%202-blue)](https://github.com/PranavJ-960/FinTrace-Orbital)
 [![Tech](https://img.shields.io/badge/Tech-React%20%7C%20FastAPI%20%7C%20OpenCV-blue)](https://github.com/PranavJ-960/FinTrace-Orbital)
 
 ---
@@ -86,49 +86,59 @@ This pipeline is critical for real-world receipt quality, where photos are taken
 
 ### Feature 2 — Item Extraction & Text Parsing (Milestone 2)
 
-A rule-based parser processes OCR output to extract line items and prices. The parser handles:
+A robust rule-based parser implemented in the backend extracts structured line items from raw OCR text. Key behaviours:
 
-- Common Singapore receipt formats
-- Noisy OCR output
-- Pattern matching for price formats
-- Heuristics to distinguish item lines from subtotals and headers
+- Price detection: uses a regex to find price tokens (supports `$`, commas, and `.` decimals) and converts to numeric prices.
+- Line filtering: heuristics and skip-keywords remove headers, totals, tax lines, payment method lines, and other non-item lines.
+- Name extraction: trims quantity/leading numbers and trailing punctuation to isolate the item name left of the matched price.
+- Zero/invalid price handling: ignores lines where price parses to 0.00 or cannot be parsed.
+- Fallback queue: item names with insufficient lexical coverage are routed to the LLM fallback for classification.
+
+Endpoint:
+
+- `POST /api/parse` — accepts `{ raw_text: string }` and returns `{ items: [{ name, price, category, raw_line }], item_count, estimated_total }`.
 
 ---
 
 ### Feature 3 — Item Categorisation Pipeline (Milestone 2)
 
-Extracted items are classified into:
+Categorisation is a hybrid multi-layer pipeline to maximise accuracy on noisy receipt text:
 
-- Food & Beverage
-- Groceries
-- Transport
-- Healthcare
-- Entertainment
-- Utilities
-- Other
+- Merchant keyword rules: immediate overrides for well-known merchants (e.g. `starbucks`, `fairprice`, `grab`) map directly to categories.
+- TF-IDF + Naive Bayes classifier: trained at backend startup from the repository `TRAINING_DATA`; used when the name contains known vocabulary.
+- Confidence gating: low-confidence classifier outputs (below a defined threshold) are labelled `LLM_FALLBACK` and queued for resolution.
+- LLM fallback: unresolved items are batched and sent to Google Gemini (`resolve_llm_fallback`) to get deterministic category suggestions, returned in the same input order.
+- User feedback loop: corrected categories saved via the frontend save flow feed into future training / manual auditing.
 
-The categorisation pipeline uses:
-
-1. Keyword matching
-2. LLM-assisted fallback
-3. User correction feedback loop
+Supported categories include: `Food & Beverage`, `Groceries`, `Transport`, `Healthcare`, `Entertainment`, `Utilities`, `Shopping`, `Personal Care`, `Education`, `Other`.
 
 ---
 
 ### Feature 4 — Spending Dashboard (Milestone 2)
 
-An interactive dashboard built with Recharts displays:
+The frontend provides an interactive `SpendingDashboard` component that visualises saved receipt data per user using Recharts. Key points:
 
-- Monthly category breakdowns
-- Historical spending trends
-- Total expenditure summaries
+- Data source: calls `GET /api/spending-summary?user_id=<id>&months=6` to retrieve aggregated totals, monthly breakdowns and available categories.
+- Response schema:
+
+  ```json
+  {
+    "totals": { "overall": 123.45, "by_category": { "Food & Beverage": 60.50, "Transport": 20.00 } },
+    "monthly": [ { "month": "2026-06", "total": 50.00, "by_category": { "Food & Beverage": 30.00 } }, ... ],
+    "categories": ["Food & Beverage", "Groceries", ...]
+  }
+  ```
+
+- Visualisations: pie chart for category share, stacked/line chart for monthly trends, and top-category stats.
+- Behaviour: shows placeholder text when no receipts exist and requires authentication to fetch user-specific summaries.
 
 ---
 
-### Feature 5 — User Accounts & Receipt History (Partially completed)
+### Feature 5 — User Accounts & Receipt History ✅
 
-JWT-based authentication via Clerk enables secure sign-in and future receipt history tracking.
-Database yet to be built (Milestone 2). 
+JWT-based authentication via Clerk enables secure sign-in and receipt history tracking.
+A PostgreSQL backend stores corrected receipt text, parsed line items, and categorised spending data.
+API endpoints now support saving receipts (`POST /api/save`), retrieving user history (`GET /api/receipts`), and generating spending summaries (`GET /api/spending-summary`).
 
 ---
 
@@ -329,7 +339,7 @@ http://localhost:5173
 
 ---
 
-# 8. Milestone 1 — Proof of Concept
+# 8. Milestone 2 — Proof of Concept
 
 ## 8.0 Application Walkthrough
 
@@ -344,7 +354,7 @@ http://localhost:5173
 
 ## 8.1 What Was Built
 
-Milestone 1 demonstrates a fully integrated frontend + backend proof of concept covering:
+Milestone 2 demonstrates a fully integrated frontend + backend proof of concept covering:
 
 | Component | Status | Details |
 |---|---|---|
@@ -353,9 +363,15 @@ Milestone 1 demonstrates a fully integrated frontend + backend proof of concept 
 | OCR Backend Endpoint | ✅ Complete | `POST /api/upload` returns extracted text |
 | OpenCV Preprocessing | ✅ Complete | Scaling, bilateral filtering, adaptive thresholding, dilation |
 | Manual Text Correction | ✅ Complete | Editable textarea with save flow |
-| Database Persistence | 🔲 Milestone 2 | Save currently logs to console |
-| Item Parsing | 🔲 Milestone 2 | Structured extraction pipeline planned |
-| Dashboard Analytics | 🔲 Milestone 2 | Recharts visualisations planned |
+| Database Persistence | ✅ Complete | PostgreSQL persistence with receipt save & query APIs |
+| Item Parsing | ✅ Complete | Structured extraction and categorisation pipeline |
+| Dashboard Analytics | ✅ Complete | Recharts spending summary and history views |
+
+Notes:
+- The backend parser extracts line items and prices using regex/heuristics and routes low-confidence names to an LLM fallback (Gemini).
+- Categorisation uses merchant keyword rules, a trained TF-IDF + Naive Bayes model, and an LLM fallback for ambiguous items.
+- Saved receipts persist `raw_text` and `parsed_items` (JSONB) in PostgreSQL and can be queried via the history API.
+- The frontend includes a `SpendingDashboard` component that fetches `/api/spending-summary` to render charts.
 
 ---
 
@@ -862,6 +878,87 @@ Planned for Milestone 2:
 
 ---
 
+## 8.9 Item Extraction & Text Parsing (Proof of Concept — Milestone 2)
+
+A backend parser extracts structured items from the raw OCR text and exposes a parse endpoint for the frontend.
+
+Key behaviours:
+
+- Price detection uses a tolerant regex accepting formats like `$1.23`, `1.23`, `1,234.56` and normalises to float.
+- Non-item lines (totals, payment methods, membership lines) are filtered via a skip-keyword list.
+- Item names are trimmed of leading quantities and trailing punctuation before categorisation.
+- Low-coverage names are queued for LLM-assisted classification.
+
+Endpoint:
+
+- `POST /api/parse` — request: `{ "raw_text": "..." }`
+- response: `{ "items": [ { "name": "APPLE JUICE", "price": 2.5, "category": "Food & Beverage", "raw_line": "APPLE JUICE 2.50" }, ... ], "item_count": N, "estimated_total": 12.34 }`
+
+---
+
+## 8.10 Item Categorisation Pipeline (Proof of Concept — Milestone 2)
+
+Categorisation is implemented as a multi-layer pipeline to handle noisy, short, or ambiguous names.
+
+Pipeline layers:
+
+- Merchant keyword rules: quick deterministic mapping for well-known merchants (e.g. `starbucks` → `Food & Beverage`, `fairprice` → `Groceries`).
+- TF-IDF + Naive Bayes classifier: trained at backend startup from `TRAINING_DATA` (vectoriser + `MultinomialNB`) for general-purpose classification.
+- Confidence gating: classifier outputs under a set threshold are marked `LLM_FALLBACK` and routed to the LLM resolver.
+- LLM (Gemini) fallback: batched unresolved names are sent to Gemini for deterministic category assignments returned in input order.
+
+Behavioural notes:
+
+- The pipeline prints debug routing for `Rule Hit`, `ML Hit`, and `ML Low Confidence` events during processing.
+- Supported categories include `Food & Beverage`, `Groceries`, `Transport`, `Healthcare`, `Entertainment`, `Utilities`, `Shopping`, `Personal Care`, `Education`, `Other`.
+
+---
+
+## 8.11 Receipt History & Persistence (Proof of Concept — Milestone 2)
+
+Receipts (raw OCR + parsed items) persist to PostgreSQL and are queryable per user.
+
+Database schema (simplified):
+
+- `receipts` table columns: `id SERIAL PRIMARY KEY`, `user_id TEXT`, `raw_text TEXT`, `parsed_items JSONB`, `created_at TIMESTAMP DEFAULT NOW()`
+
+Endpoints:
+
+- `POST /api/save` — body: `{ "user_id": "<id>", "raw_text": "...", "parsed_items": [ ... ] }` → returns `{ "success": true, "receipt_id": <id> }` on success.
+- `GET /api/receipts?user_id=<id>` — returns `{"receipts": [ { "id": 1, "raw_text": "...", "parsed_items": [...], "created_at": "..." }, ... ] }`.
+- `GET /api/spending-summary?user_id=<id>&months=6` — returns aggregated `totals`, `monthly` series and `categories` useful for dashboard visualisations.
+
+Notes:
+
+- `parsed_items` are stored as JSONB to allow efficient JSON queries and aggregation in SQL for the spending summary.
+- The backend includes SQL to aggregate monthly totals per category and overall totals used by the dashboard.
+
+---
+
+## 8.12 Spending Dashboard (Proof of Concept — Milestone 2)
+
+The frontend `SpendingDashboard` component renders user-specific spending analytics using Recharts.
+
+Key behaviours:
+
+- Fetches `/api/spending-summary?user_id=<id>&months=6` and renders:
+  - Pie chart for category share (current period)
+  - Line/stacked chart for monthly breakdown by category
+  - Top-category stat and overall total
+- Shows placeholders when no receipts are present and requires authentication to access user data.
+- Response schema example:
+
+```json
+{
+  "totals": { "overall": 123.45, "by_category": { "Food & Beverage": 60.50, "Transport": 20.00 } },
+  "monthly": [ { "month": "2026-06", "total": 50.00, "by_category": { "Food & Beverage": 30.00 } } ],
+  "categories": ["Food & Beverage", "Groceries", "Transport", "Other"]
+}
+```
+
+---
+
+
 ## 8.9 Application Entry Point — `main.tsx`
 
 ```tsx
@@ -908,40 +1005,31 @@ This prevents sensitive credentials from being hardcoded into source files.
 ## 8.10 End-to-End Data Flow
 
 ```text
-User uploads receipt image
-        │
-        ▼
-React frontend stores image in state
-        │
-        ▼
-Frontend sends multipart/form-data POST request
-        │
-        ▼
-FastAPI backend receives image bytes
-        │
-        ▼
-OpenCV preprocessing pipeline:
-Scaling
-→ Grayscale
-→ Bilateral Filter
-→ Adaptive Thresholding
-→ Morphological Dilation
-        │
-        ▼
-Tesseract OCR extracts text
-        │
-        ▼
-Backend returns JSON response
-        │
-        ▼
-React displays editable OCR text
-        │
-        ▼
-User manually corrects OCR errors
-        │
-        ▼
-[Milestone 2]
-Corrected text stored in PostgreSQL
+1) Upload & OCR
+   - Frontend: `POST /api/upload` (multipart/form-data) with image
+   - Backend: OpenCV preprocessing (scale → grayscale → bilateral filter → adaptive threshold → dilation)
+   - Backend: Tesseract OCR extracts raw text
+   - Response: `{ "text": "...raw OCR text..." }`
+
+2) Parse & Categorise
+   - Frontend: optionally display/edit raw text, then `POST /api/parse` with `{ raw_text }`
+   - Backend: `parse_receipt_items()` extracts `{ name, price, raw_line }` for each detected item using regex and heuristics
+   - Backend: `classify_item_name()` applies merchant rules, TF-IDF + Naive Bayes classifier, confidence gating; low-confidence items are batched to Gemini for deterministic categories
+   - Response: `{ "items": [ { name, price, category, raw_line }, ... ], "item_count": N, "estimated_total": 12.34 }`
+
+3) Save & Persist
+   - Frontend: user confirms edits and clicks save → `POST /api/save` with `{ user_id, raw_text, parsed_items }`
+   - Backend: inserts into `receipts (user_id, raw_text, parsed_items JSONB, created_at)` and returns `receipt_id`
+
+4) History & Dashboard
+   - Frontend: fetch history via `GET /api/receipts?user_id=<id>` to populate the History view
+   - Dashboard: `GET /api/spending-summary?user_id=<id>&months=6` returns aggregated `totals`, `monthly` series and `categories`
+   - Frontend: `SpendingDashboard` uses the summary payload to render Recharts visualisations (pie, stacked/line charts)
+
+5) Feedback Loop
+   - User corrections to categories/items are saved with the receipt and available for manual review or retraining of the TF-IDF classifier.
+
+This pipeline provides the full Milestone 2 flow: image → OCR → parse → categorise → persist → visualise.
 ```
 
 ---
@@ -958,14 +1046,13 @@ Initial fetch calls from React to FastAPI were blocked by the browser. Resolved 
 
 # 9. Development Plan & Timeline
 
-## Milestone 2
+## Milestone 2 — Completed
 
-- [ ] Rule-based parser
-- [ ] Categorisation pipeline
-- [ ] Dashboard visualisations
-- [ ] PostgreSQL integration
-- [ ] Receipt history API
-- [ ] Unit tests
+- [x] Rule-based parser
+- [x] Categorisation pipeline
+- [x] Dashboard visualisations
+- [x] PostgreSQL integration
+- [x] Receipt history API
 
 ---
 
@@ -973,6 +1060,9 @@ Initial fetch calls from React to FastAPI were blocked by the browser. Resolved 
 
 - [ ] Anomaly detection
 - [ ] Receipt splitting
+- [ ] Financial fingerprint reports
+- [ ] Receipt splitting
+- [ ] Report generation
 - [ ] Financial fingerprint reports
 - [ ] User testing
 - [ ] Docker deployment
