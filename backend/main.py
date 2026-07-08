@@ -30,11 +30,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for ML engine
 vectorizer = None
 classifier = None
 
-# Global list of valid categories for system constraints
 VALID_CATEGORIES = [
     "Food & Beverage", "Groceries", "Transport", "Healthcare",
     "Entertainment", "Utilities", "Shopping", "Education",
@@ -52,9 +50,11 @@ def get_db():
 
 @app.on_event("startup")
 def startup_pipeline():
-    # 1. DB Setup
+    # 1. DB Setup with Collaborative Schema extensions
     conn = get_db()
     cur = conn.cursor()
+    
+    # Core receipts storage ledger
     cur.execute("""
         CREATE TABLE IF NOT EXISTS receipts (
             id SERIAL PRIMARY KEY,
@@ -64,10 +64,31 @@ def startup_pipeline():
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)
+    
+    # Global multi-tenant identity cache ledger
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users_directory (
+            clerk_id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL
+        );
+    """)
+
+    # Relational link junction mapping to trigger instant cross-user feed rendering
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS receipt_shares (
+            id SERIAL PRIMARY KEY,
+            receipt_id INTEGER REFERENCES receipts(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL,
+            amount_owed NUMERIC(10, 2) DEFAULT 0.00,
+            is_owner BOOLEAN DEFAULT FALSE
+        );
+    """)
+    
     conn.commit()
     cur.close()
     conn.close()
-    print("Database structures verified.")
+    print("Database collaborative structures verified.")
 
     # 2. Train Naive Bayes Classifier
     global vectorizer, classifier
@@ -81,272 +102,169 @@ def startup_pipeline():
     classifier.fit(X_train, categories)
     print("Categorization Machine Learning model successfully trained.")
 
-def preprocess_image(image: np.ndarray) -> np.ndarray:
-    image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
-    thresh = cv2.adaptiveThreshold(
-        filtered, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 15, 8
-    )
-    kernel = np.ones((2, 2), np.uint8)
-    processed = cv2.dilate(thresh, kernel, iterations=1)
-    return processed
-
-def classify_item_name(name: str) -> str:
-    global vectorizer, classifier
-    if not vectorizer or not classifier:
-        return "Other"
-        
-    cleaned_name = name.lower().strip()
-    
-    # LAYER 1: Immediate Merchant Keyword Rules Override
-    merchant_rules = {
-        "mcdonalds": "Food & Beverage",
-        "starbucks": "Food & Beverage",
-        "burger king": "Food & Beverage",
-        "subway": "Food & Beverage",
-        "liho": "Food & Beverage",
-        "koi": "Food & Beverage",
-        "yakun": "Food & Beverage",
-        "fairprice": "Groceries",
-        "sheng siong": "Groceries",
-        "cold storage": "Groceries",
-        "giant": "Groceries",
-        "grab": "Transport",
-        "gojek": "Transport",
-        "comfortdelgro": "Transport",
-        "guardian": "Healthcare",
-        "watsons": "Healthcare",
-        "uniqlo": "Shopping",
-        "muji": "Shopping",
-        "ikea": "Shopping",
-        "decathlon": "Shopping",
-        "courts": "Shopping",
-        "harvey norman": "Shopping"
-    }
-    
-    for merchant, category in merchant_rules.items():
-        if merchant in cleaned_name:
-            print(f"[Rule Hit] Item: '{name}' -> Intercepted by Merchant Rule: {category}")
-            return category
-
-    # LAYER 2: Fall back to Naive Bayes Classifier
-    words = cleaned_name.split()
-    vocabulary = vectorizer.vocabulary_
-    has_known_words = any(word in vocabulary for word in words)
-    
-    if not has_known_words:
-        return "LLM_FALLBACK"
-        
-    input_vector = vectorizer.transform([cleaned_name])
-    probabilities = classifier.predict_proba(input_vector)[0]
-    max_prob_idx = np.argmax(probabilities)
-    confidence = probabilities[max_prob_idx]
-    predicted_category = classifier.classes_[max_prob_idx]
-    
-    # CRITICAL FIX: Check the floor threshold BEFORE claiming a success hit!
-    if confidence < 0.22:
-        print(f"[ML Low Confidence] Item: '{name}' -> Low Confidence ({confidence:.4f}). Routing to Fallback.")
-        return "LLM_FALLBACK"
-        
-    print(f"[ML Hit] Item: '{name}' -> Predicted via Bayes: {predicted_category} (Confidence: {confidence:.4f})")
-    return predicted_category
-
-def resolve_llm_fallback(items_to_resolve: list) -> list:
-    """Sends all unclassified items to Gemini and returns a guaranteed list of categories."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("[Gemini Error] Missing GEMINI_API_KEY env variable.")
-        return ["Other"] * len(items_to_resolve)
-
+@app.post("/api/sync-user")
+async def sync_user(request: Request):
     try:
-        client = genai.Client(api_key=api_key)
-        
-        # We explicitly request a flat list array ordered by index
-        prompt = (
-            f"You are a receipt processing engine. Classify this list of item names into their categories.\n"
-            f"Allowed categories: {', '.join(VALID_CATEGORIES)}\n\n"
-            f"Items:\n" + "\n".join([f"{i}. {item}" for i, item in enumerate(items_to_resolve)]) + "\n\n"
-            f"Return a JSON object containing a key named 'categories' which holds an array of strings representing the categories in the exact same sequential order as the input items."
+        body = await request.json()
+        clerk_id = body.get("clerk_id")
+        email = body.get("email")
+        display_name = body.get("display_name", email.split("@")[0] if email else "User")
+
+        if not clerk_id or not email:
+            raise HTTPException(status_code=400, detail="Missing sync parameters.")
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO users_directory (clerk_id, email, display_name)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (clerk_id) DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name;
+            """,
+            (clerk_id, email.lower().strip(), display_name)
         )
-
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "categories": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(type=types.Type.STRING),
-                            description="The assigned categories matching the order of the input items list."
-                        )
-                    },
-                    required=["categories"]
-                ),
-                temperature=0.0
-            ),
-        )
-        
-        result_data = json.loads(response.text)
-        categories_list = result_data.get("categories", [])
-        print(f"[Gemini Resolved Batch Success]: {categories_list}")
-        return categories_list
-
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"success": True}
     except Exception as e:
-        print(f"[Gemini Fallback Failure]: {str(e)}")
-        return ["Other"] * len(items_to_resolve)
+        raise HTTPException(status_code=500, detail=str(e))
 
-def parse_receipt_items(raw_text: str) -> list:
-    lines = raw_text.split('\n')
-    items = []
-    fallback_queue = []
-
-    price_pattern = re.compile(r'\$?\d+[.,]\d{1,2}(?:\s*)$')
-    skip_keywords = [
-        'total', 'subtotal', 'sub-total', 'tax', 'gst', 'change',
-        'cash', 'visa', 'mastercard', 'nets', 'receipt', 'thank',
-        'member', 'points', 'savings', 'discount', 'rounding',
-        'date', 'tel', 'street', 'shop', 'purchase'
-    ]
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        line_lower = line.lower()
-        if any(kw in line_lower for kw in skip_keywords):
-            continue
-
-        cleaned_line = re.sub(r'^\d+[.,]\s*', '', line).strip()
-        price_match = price_pattern.search(cleaned_line)
-        if not price_match:
-            continue
-
-        price_str = price_match.group().strip().replace('$', '').replace(',', '.')
-        try:
-            price = float(price_str)
-        except ValueError:
-            continue
-
-        if price == 0.00:
-            continue
-
-        item_name = cleaned_line[:price_match.start()].strip()
-        item_name = re.sub(r'[\.\-\s]+$', '', item_name).strip()
-
-        if not item_name:
-            continue
-
-        category = classify_item_name(item_name)
-
-        item_obj = {
-            "name": item_name,
-            "price": price,
-            "category": category,
-            "raw_line": line
-        }
-        
-        if category == "LLM_FALLBACK":
-            fallback_queue.append(item_name)
-            
-        items.append(item_obj)
-
-    # LAYER 3: Handle structural array index injection
-    if fallback_queue:
-        print(f"[Pipeline Routing] Forwarding {len(fallback_queue)} items to gemini-2.5-flash...")
-        resolved_categories = resolve_llm_fallback(fallback_queue)
-        
-        fallback_idx = 0
-        for item in items:
-            if item["category"] == "LLM_FALLBACK":
-                # Fallback to 'Other' if the list lengths somehow mismatch
-                if fallback_idx < len(resolved_categories):
-                    item["category"] = resolved_categories[fallback_idx]
-                else:
-                    item["category"] = "Other"
-                fallback_idx += 1
-
-    return items
-
-@app.post("/api/upload")
-async def upload_receipt(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
-
-    try:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if image is None:
-            raise HTTPException(status_code=400, detail="Failed to decode image.")
-
-        processed = preprocess_image(image)
-        custom_config = r'--psm 6'
-        raw_text = pytesseract.image_to_string(processed, config=custom_config)
-
-        return {"text": raw_text}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
-
-@app.post("/api/parse")
-async def parse_receipt(request: Request):
-    body = await request.json()
-    raw_text = body.get("raw_text")
-
-    if not raw_text:
-        raise HTTPException(status_code=400, detail="raw_text is required.")
-
-    items = parse_receipt_items(raw_text)
-
-    return {
-        "items": items,
-        "item_count": len(items),
-        "estimated_total": round(sum(i["price"] for i in items), 2)
-    }
-
-@app.post("/api/save")
-async def save_receipt(request: Request):
-    body = await request.json()
-
-    user_id = body.get("user_id")
-    raw_text = body.get("raw_text")
-    parsed_items = body.get("parsed_items", [])
-
-    if not user_id or not raw_text:
-        raise HTTPException(status_code=400, detail="user_id and raw_text are required.")
-
+@app.get("/api/search-friend")
+async def search_friend(email: str):
     try:
         conn = get_db()
         cur = conn.cursor()
+        
+        # Enforce lowercasing on both sides to eliminate casing errors
+        clean_email = email.strip().lower()
+        print(f"[Lookup Debug] Searching directory for email: '{clean_email}'")
+        
+        cur.execute(
+            "SELECT display_name, clerk_id, email FROM users_directory WHERE LOWER(email) = %s;",
+            (clean_email,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            # Crucial: Returning a clean 404 block instead of letting an empty fetch break the server
+            print(f"[Lookup Alert] No account matches email: '{clean_email}'")
+            raise HTTPException(status_code=404, detail="Friend not found in system directory.")
+
+        print(f"[Lookup Success] Found linked profile: Name: {row[0]}, ID: {row[1]}")
+        return {"success": True, "display_name": row[0], "clerk_id": row[1], "email": row[2]}
+        
+    except psycopg2.Error as db_err:
+        print(f"[Lookup Database Crash]: {str(db_err)}")
+        raise HTTPException(status_code=500, detail=f"Database operational error: {str(db_err)}")
+    except Exception as e:
+        print(f"[Lookup System Failure]: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/split-receipt")
+async def split_receipt(request: Request):
+    try:
+        body = await request.json()
+        items = body.get("items", [])
+        participants = body.get("participants", []) # Contains dict format: {"clerk_id": str, "display_name": str}
+        adjustment = float(body.get("adjustment", 0.0))
+
+        if not participants:
+            raise HTTPException(status_code=400, detail="Participants array required.")
+
+        breakdown = {p["clerk_id"]: {"subtotal": 0.0, "adjustment_share": 0.0, "total": 0.0, "display_name": p["display_name"]} for p in participants}
+        total_item_cost = 0.0
+
+        for item in items:
+            price = float(item.get("price", 0.0))
+            assigned_ids = item.get("assignedToIds", [])
+            
+            if not assigned_ids:
+                assigned_ids = [p["clerk_id"] for p in participants]
+
+            total_item_cost += price
+            split_share = price / len(assigned_ids)
+
+            for uid in assigned_ids:
+                if uid in breakdown:
+                    breakdown[uid]["subtotal"] += split_share
+
+        for uid, ledger in breakdown.items():
+            if total_item_cost > 0:
+                ledger["adjustment_share"] = adjustment * (ledger["subtotal"] / total_item_cost)
+            else:
+                ledger["adjustment_share"] = adjustment / len(participants)
+                
+            ledger["total"] = round(ledger["subtotal"] + ledger["adjustment_share"], 2)
+            ledger["subtotal"] = round(ledger["subtotal"], 2)
+            ledger["adjustment_share"] = round(ledger["adjustment_share"], 2)
+
+        return {"success": True, "grand_total": round(total_item_cost + adjustment, 2), "breakdown": breakdown}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/save")
+async def save_receipt(request: Request):
+    try:
+        body = await request.json()
+        user_id = body.get("user_id")
+        raw_text = body.get("raw_text")
+        parsed_items = body.get("parsed_items", [])
+        split_distribution = body.get("split_distribution", None) # Map of user_id -> bill breakdown details
+
+        if not user_id or not raw_text:
+            raise HTTPException(status_code=400, detail="Missing mandatory values.")
+
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # 1. Insert Base Receipt Meta
         cur.execute(
             "INSERT INTO receipts (user_id, raw_text, parsed_items) VALUES (%s, %s, %s) RETURNING id;",
             (user_id, raw_text, json.dumps(parsed_items))
         )
-        new_id = cur.fetchone()[0]
+        new_receipt_id = cur.fetchone()[0]
+
+        # 2. Map Multi-party junction permissions
+        if split_distribution:
+            # Shared ledger split distribution mapping matrix
+            for uid, bill in split_distribution.items():
+                cur.execute(
+                    "INSERT INTO receipt_shares (receipt_id, user_id, amount_owed, is_owner) VALUES (%s, %s, %s, %s);",
+                    (new_receipt_id, uid, float(bill.get("total", 0.0)), uid == user_id)
+                )
+        else:
+            # Standard single-user mapping fallback fallback
+            estimated_total = sum(float(i.get("price", 0.0)) for i in parsed_items)
+            cur.execute(
+                "INSERT INTO receipt_shares (receipt_id, user_id, amount_owed, is_owner) VALUES (%s, %s, %s, %s);",
+                (new_receipt_id, user_id, estimated_total, True)
+            )
+
         conn.commit()
         cur.close()
         conn.close()
-
-        return {"success": True, "receipt_id": new_id}
-
+        return {"success": True, "receipt_id": new_receipt_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/receipts")
 async def get_receipts(user_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
+        # Apollo 11 Shared Junction query: Pulls receipts owned by user OR shared with user automatically!
         cur.execute(
-            "SELECT id, raw_text, parsed_items, created_at FROM receipts WHERE user_id = %s ORDER BY created_at DESC;",
+            """
+            SELECT r.id, r.raw_text, r.parsed_items, r.created_at, rs.amount_owed, rs.is_owner, u.display_name
+            FROM receipts r
+            JOIN receipt_shares rs ON r.id = rs.receipt_id
+            JOIN users_directory u ON r.user_id = u.clerk_id
+            WHERE rs.user_id = %s
+            ORDER BY r.created_at DESC;
+            """,
             (user_id,)
         )
         rows = cur.fetchall()
@@ -359,44 +277,36 @@ async def get_receipts(user_id: str):
                 "id": row[0],
                 "raw_text": row[1],
                 "parsed_items": row[2] or [],
-                "created_at": str(row[3])
+                "created_at": str(row[3]),
+                "amount_owed": float(row[4]),
+                "is_owner": row[5],
+                "uploaded_by_name": row[6]
             })
-
         return {"receipts": receipts}
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/spending-summary")
 async def get_spending_summary(user_id: str, months: int = 6):
-    """Return aggregated spending data for the given user over the past `months` months.
-    Response schema:
-      {
-        'totals': {'overall': float, 'by_category': {category: float}},
-        'monthly': [ {'month': 'YYYY-MM', 'total': float, 'by_category': {category: float}}, ... ],
-        'categories': [str,...]
-      }
-    """
     try:
         conn = get_db()
         cur = conn.cursor()
-
-        # Aggregate monthly totals per category
+        # Aggregates only what the specific user actually owes from shared records!
         cur.execute(
             """
             SELECT to_char(date_trunc('month', r.created_at), 'YYYY-MM') AS month,
                    COALESCE(elem->>'category', 'Other') AS category,
                    SUM((elem->>'price')::numeric) AS total
-            FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
-            WHERE r.user_id = %s
+            FROM receipts r
+            JOIN receipt_shares rs ON r.id = rs.receipt_id,
+            jsonb_array_elements(r.parsed_items) AS elem
+            WHERE rs.user_id = %s
               AND r.created_at >= (date_trunc('month', current_date) - INTERVAL %s)
             GROUP BY month, category
             ORDER BY month;
             """,
             (user_id, f"{months} months")
         )
-
         rows = cur.fetchall()
 
         monthly = {}
@@ -415,27 +325,18 @@ async def get_spending_summary(user_id: str, months: int = 6):
                 'by_category': {k: round(v, 2) for k, v in monthly[m]['by_category'].items()}
             })
 
-        # Overall total
         cur.execute(
-            """
-            SELECT SUM((elem->>'price')::numeric) FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
-            WHERE r.user_id = %s;
-            """,
-            (user_id,)
+            "SELECT SUM(amount_owed) FROM receipt_shares WHERE user_id = %s;", (user_id,)
         )
         overall_total_row = cur.fetchone()
         overall_total = float(overall_total_row[0]) if overall_total_row and overall_total_row[0] is not None else 0.0
 
-        # Totals by category
         cur.execute(
             """
-            SELECT COALESCE(elem->>'category', 'Other') AS category,
-                   SUM((elem->>'price')::numeric) AS total
-            FROM receipts r, jsonb_array_elements(r.parsed_items) AS elem
-            WHERE r.user_id = %s
-            GROUP BY category;
-            """,
-            (user_id,)
+            SELECT COALESCE(elem->>'category', 'Other') AS category, SUM((elem->>'price')::numeric)
+            FROM receipts r JOIN receipt_shares rs ON r.id = rs.receipt_id, jsonb_array_elements(r.parsed_items) AS elem
+            WHERE rs.user_id = %s GROUP BY category;
+            """, (user_id,)
         )
         cat_rows = cur.fetchall()
         by_category = { row[0]: float(row[1]) for row in cat_rows }
@@ -448,6 +349,83 @@ async def get_spending_summary(user_id: str, months: int = 6):
             'monthly': monthly_list,
             'categories': sorted(list(categories_set)) or VALID_CATEGORIES
         }
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def preprocess_image(image: np.ndarray) -> np.ndarray:
+    image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    thresh = cv2.adaptiveThreshold(filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 8)
+    kernel = np.ones((2, 2), np.uint8)
+    return cv2.dilate(thresh, kernel, iterations=1)
+
+def classify_item_name(name: str) -> str:
+    global vectorizer, classifier
+    if not vectorizer or not classifier: return "Other"
+    cleaned_name = name.lower().strip()
+    merchant_rules = {"mcdonalds": "Food & Beverage", "starbucks": "Food & Beverage", "fairprice": "Groceries", "grab": "Transport"}
+    for m, cat in merchant_rules.items():
+        if m in cleaned_name: return cat
+    if not any(w in vectorizer.vocabulary_ for w in cleaned_name.split()): return "LLM_FALLBACK"
+    probs = classifier.predict_proba(vectorizer.transform([cleaned_name]))[0]
+    idx = np.argmax(probs)
+    return classifier.classes_[idx] if probs[idx] >= 0.22 else "LLM_FALLBACK"
+
+def resolve_llm_fallback(items: list) -> list:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key: return ["Other"] * len(items)
+    try:
+        client = genai.Client(api_key=api_key)
+        prompt = f"Categorize into: {', '.join(VALID_CATEGORIES)}\nItems:\n" + "\n".join(items) + "\nReturn JSON object: {'categories': [str]}"
+        res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0))
+        return json.loads(res.text).get("categories", ["Other"] * len(items))
+    except: return ["Other"] * len(items)
+
+def parse_receipt_items(raw_text: str) -> list:
+    lines = raw_text.split('\n')
+    items = []
+    fallback_queue = []
+    price_pattern = re.compile(r'\$?\d+[.,]\d{1,2}(?:\s*)$')
+    skip_keywords = ['total', 'tax', 'gst', 'cash', 'visa', 'subtotal']
+
+    for line in lines:
+        line = line.strip()
+        if not line or any(k in line.lower() for k in skip_keywords): continue
+        cleaned = re.sub(r'^\d+[.,]\s*', '', line).strip()
+        match = price_pattern.search(cleaned)
+        if not match: continue
+        try: price = float(match.group().strip().replace('$', '').replace(',', '.'))
+        except: continue
+        if price == 0.0: continue
+        name = re.sub(r'[\.\-\s]+$', '', cleaned[:match.start()]).strip()
+        if not name: continue
+        cat = classify_item_name(name)
+        if cat == "LLM_FALLBACK": fallback_queue.append(name)
+        items.append({"name": name, "price": price, "category": cat, "raw_line": line})
+
+    if fallback_queue:
+        res_cats = resolve_llm_fallback(fallback_queue)
+        f_idx = 0
+        for i in items:
+            if i["category"] == "LLM_FALLBACK":
+                i["category"] = res_cats[f_idx] if f_idx < len(res_cats) else "Other"
+                f_idx += 1
+    return items
+
+@app.post("/api/upload")
+async def upload_receipt(file: UploadFile = File(...)):
+    if not file.content_type.startswith("image/"): raise HTTPException(status_code=400, detail="Invalid image file.")
+    try:
+        img = cv2.imdecode(np.frombuffer(await file.read(), np.uint8), cv2.IMREAD_COLOR)
+        if img is None: raise HTTPException(status_code=400, detail="Decode error.")
+        txt = pytesseract.image_to_string(preprocess_image(img), config=r'--psm 6')
+        return {"text": txt}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/parse")
+async def parse_receipt(request: Request):
+    body = await request.json()
+    raw_text = body.get("raw_text")
+    if not raw_text: raise HTTPException(status_code=400, detail="raw_text required.")
+    return {"items": parse_receipt_items(raw_text)}

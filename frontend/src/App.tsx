@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SignedIn, SignedOut, SignIn, UserButton, useUser } from '@clerk/clerk-react';
 import SpendingDashboard from './components/SpendingDashboard';
 
@@ -13,11 +13,20 @@ interface ParsedItem {
   raw_line: string;
 }
 
+interface Participant {
+  clerk_id: string;
+  display_name: string;
+  email: string;
+}
+
 interface ReceiptRecord {
   id: number;
   raw_text: string;
   parsed_items: ParsedItem[];
   created_at: string;
+  amount_owed: number;
+  is_owner: boolean;
+  uploaded_by_name: string;
 }
 
 type View = 'upload' | 'history' | 'dashboard';
@@ -45,7 +54,6 @@ const NAV_ITEMS: { id: View; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
 ];
 
-// Shared Clerk dark appearance — used on every Clerk component
 const clerkAppearance = {
   variables: {
     colorBackground: '#0f172a',
@@ -59,49 +67,12 @@ const clerkAppearance = {
     borderRadius: '10px',
   },
   elements: {
-    card: {
-      backgroundColor: '#0f172a',
-      border: '1px solid #1e293b',
-      boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-    },
+    card: { backgroundColor: '#0f172a', border: '1px solid #1e293b', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' },
     headerTitle: { color: '#f1f5f9', fontWeight: '700' },
     headerSubtitle: { color: '#94a3b8' },
     formFieldLabel: { color: '#94a3b8', fontSize: '13px' },
-    formFieldInput: {
-      backgroundColor: '#1e293b',
-      borderColor: '#334155',
-      color: '#f1f5f9',
-    },
-    formFieldInputShowPasswordButton: { color: '#64748b' },
-    footerActionText: { color: '#64748b' },
-    footerActionLink: { color: '#3b82f6' },
-    identityPreviewText: { color: '#f1f5f9' },
-    identityPreviewEditButton: { color: '#3b82f6' },
-    formButtonPrimary: {
-      backgroundColor: '#2563eb',
-      color: '#ffffff',
-      fontWeight: '600',
-    },
-    dividerText: { color: '#475569' },
-    dividerLine: { backgroundColor: '#1e293b' },
-    socialButtonsBlockButton: {
-      backgroundColor: '#1e293b',
-      borderColor: '#334155',
-      color: '#f1f5f9',
-    },
-    socialButtonsBlockButtonText: { color: '#f1f5f9' },
-    socialButtonsBlockButtonArrow: { color: '#64748b' },
-    otpCodeFieldInput: {
-      backgroundColor: '#1e293b',
-      borderColor: '#334155',
-      color: '#f1f5f9',
-    },
-    alternativeMethodsBlockButton: {
-      backgroundColor: '#1e293b',
-      borderColor: '#334155',
-      color: '#f1f5f9',
-    },
-    badge: { backgroundColor: '#1e293b', color: '#64748b' },
+    formFieldInput: { backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' },
+    formButtonPrimary: { backgroundColor: '#2563eb', color: '#ffffff', fontWeight: '600' },
   },
 };
 
@@ -118,6 +89,32 @@ function App() {
   const [history, setHistory]           = useState<ReceiptRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [toast, setToast]               = useState<string | null>(null);
+
+  /* Receipt Splitting Core States */
+  const [showSplitPanel, setShowSplitPanel] = useState(false);
+  const [friendsList, setFriendsList]       = useState<Participant[]>([]);
+  const [friendSearchEmail, setFriendSearchEmail] = useState('');
+  const [itemAssignments, setItemAssignments] = useState<Record<number, string[]>>({});
+  const [extraCharges, setExtraCharges]     = useState('0');
+  const [splitResult, setSplitResult]       = useState<any | null>(null);
+  const [calculatingSplit, setCalculatingSplit] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      const myDisplayName = user.firstName || user.username || 'Me';
+      const myEmail = user.primaryEmailAddress?.emailAddress || '';
+      
+      fetch('http://127.0.0.1:8000/api/sync-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clerk_id: user.id, email: myEmail, display_name: myDisplayName })
+      })
+      .then(() => {
+        setFriendsList([{ clerk_id: user.id, display_name: `${myDisplayName} (Me)`, email: myEmail }]);
+      })
+      .catch(err => console.error("Global Directory Sync Failure:", err));
+    }
+  }, [user]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -137,6 +134,12 @@ function App() {
       });
       const data = await res.json();
       setParsedItems(data.items || []);
+      
+      const defaultAssignments: Record<number, string[]> = {};
+      (data.items || []).forEach((_: any, idx: number) => {
+        if (user) defaultAssignments[idx] = [user.id];
+      });
+      setItemAssignments(defaultAssignments);
     } catch {
       setParsedItems([]);
     }
@@ -155,23 +158,83 @@ function App() {
     setReceipt(null);
     setIsEditing(false);
     setParsedItems([]);
+    setSplitResult(null);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
 
     try {
       const res = await fetch('http://127.0.0.1:8000/api/upload', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      const text = data.text || JSON.stringify(data, null, 2);
-      setReceipt({ rawText: text });
+      setReceipt({ rawText: data.text || '' });
       setIsEditing(true);
-      await handleParse(text);
+      await handleParse(data.text || '');
     } catch {
       showToast('Could not process the image. Try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearchFriend = async () => {
+    if (!friendSearchEmail.trim()) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/search-friend?email=${encodeURIComponent(friendSearchEmail.trim())}`);
+      if (!res.ok) {
+        showToast("Friend not found in database. Double check email!");
+        return;
+      }
+      const data = await res.json();
+      if (friendsList.some(f => f.clerk_id === data.clerk_id)) {
+        showToast("Friend already linked in current session.");
+        return;
+      }
+      setFriendsList([...friendsList, { clerk_id: data.clerk_id, display_name: data.display_name, email: data.email }]);
+      showToast(`Successfully linked ${data.display_name}!`);
+      setFriendSearchEmail('');
+    } catch {
+      showToast("Lookup query faulted.");
+    }
+  };
+
+  const calculateLiveSplitMatrix = async () => {
+    setCalculatingSplit(true);
+    const packagedItems = parsedItems.map((item, index) => ({
+      name: item.name,
+      price: item.price,
+      assignedToIds: itemAssignments[index] || (user ? [user.id] : [])
+    }));
+
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/split-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: packagedItems,
+          participants: friendsList.map(f => ({ clerk_id: f.clerk_id, display_name: f.display_name })),
+          adjustment: parseFloat(extraCharges || '0.0')
+        })
+      });
+      const data = await res.json();
+      setSplitResult(data.breakdown);
+    } catch {
+      showToast("Splitting arithmetic pipeline dropped.");
+    } finally {
+      setCalculatingSplit(false);
+    }
+  };
+
+  const toggleUserAssignment = (itemIdx: number, targetClerkId: string) => {
+    const current = itemAssignments[itemIdx] || [];
+    const updated = current.includes(targetClerkId)
+      ? current.filter(id => id !== targetClerkId)
+      : [...current, targetClerkId];
+    
+    setItemAssignments({
+      ...itemAssignments,
+      [itemIdx]: updated.length === 0 && user ? [user.id] : updated
+    });
   };
 
   const handleSave = async () => {
@@ -181,15 +244,21 @@ function App() {
       const res = await fetch('http://127.0.0.1:8000/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, raw_text: receipt.rawText, parsed_items: parsedItems }),
+        body: JSON.stringify({
+          user_id: user.id,
+          raw_text: receipt.rawText,
+          parsed_items: parsedItems,
+          split_distribution: splitResult
+        }),
       });
       if (!res.ok) throw new Error();
-      const data = await res.json();
-      showToast(`Receipt #${data.receipt_id} saved!`);
+      showToast(`Receipt committed across active nodes!`);
       setIsEditing(false);
       setReceipt(null);
       setSelectedFile(null);
       setParsedItems([]);
+      setShowSplitPanel(false);
+      setSplitResult(null);
     } catch {
       showToast('Failed to save. Try again.');
     } finally {
@@ -225,7 +294,6 @@ function App() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #020817; color: #f1f5f9; font-family: 'Inter', sans-serif; min-height: 100vh; }
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -234,31 +302,15 @@ function App() {
         .nav-btn:hover { background: #1e293b !important; color: #f1f5f9 !important; }
         .action-btn:hover { opacity: 0.88; }
         .receipt-row:hover { background: rgba(255,255,255,0.03) !important; }
-        textarea:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important; }
       `}</style>
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999,
-          background: '#1e293b', border: '1px solid #334155',
-          borderRadius: 10, padding: '12px 18px',
-          color: '#f1f5f9', fontSize: 14, fontWeight: 500,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          animation: 'slideIn 0.2s ease',
-        }}>
-          {toast}
-        </div>
-      )}
+      {toast && <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: '12px 18px', color: '#f1f5f9', fontSize: 14, fontWeight: 500, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', animation: 'slideIn 0.2s ease' }}>{toast}</div>}
 
       <SignedOut>
-        <div style={{
-          minHeight: '100vh', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', padding: 24, gap: 24,
-        }}>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 24 }}>
           <div style={{ textAlign: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 36, marginBottom: 8 }}>🧾</div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f1f5f9', letterSpacing: '-0.02em' }}>FinTrace</h1>
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f1f5f9' }}>FinTrace</h1>
             <p style={{ color: '#64748b', marginTop: 6, fontSize: 15 }}>Scan receipts. Track spending. Stay in control.</p>
           </div>
           <SignIn routing="hash" appearance={clerkAppearance} />
@@ -267,39 +319,17 @@ function App() {
 
       <SignedIn>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 16px 80px' }}>
-
-          {/* Header */}
-          <header style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '20px 0 16px', borderBottom: '1px solid #1e293b', marginBottom: 24,
-          }}>
+          <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 16px', borderBottom: '1px solid #1e293b', marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 22 }}>🧾</span>
-              <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: '#f1f5f9' }}>FinTrace</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9' }}>FinTrace</span>
             </div>
             <UserButton appearance={clerkAppearance} />
           </header>
 
-          {/* Nav */}
-          <nav style={{
-            display: 'flex', gap: 4,
-            background: '#0f172a', borderRadius: 12, padding: 4,
-            border: '1px solid #1e293b', marginBottom: 28,
-          }}>
+          <nav style={{ display: 'flex', gap: 4, background: '#0f172a', borderRadius: 12, padding: 4, border: '1px solid #1e293b', marginBottom: 28 }}>
             {NAV_ITEMS.map(({ id, label, icon }) => (
-              <button
-                key={id}
-                className="nav-btn"
-                onClick={() => handleNavClick(id)}
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '9px 12px', border: 'none', borderRadius: 9, cursor: 'pointer',
-                  fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
-                  background: view === id ? '#1e293b' : 'transparent',
-                  color: view === id ? '#f1f5f9' : '#64748b',
-                  fontFamily: 'inherit',
-                }}
-              >
+              <button key={id} className="nav-btn" onClick={() => handleNavClick(id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 'none', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: view === id ? '#1e293b' : 'transparent', color: view === id ? '#f1f5f9' : '#64748b', fontFamily: 'inherit' }}>
                 <span style={{ fontSize: 14 }}>{icon}</span> {label}
               </button>
             ))}
@@ -311,57 +341,16 @@ function App() {
               {!isEditing && (
                 <>
                   <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Upload a Receipt</h2>
-                  <p style={{ color: '#64748b', fontSize: 14, marginBottom: 24 }}>
-                    Take a photo or upload an image — we'll extract and categorise every item automatically.
-                  </p>
-
-                  <label
-                    className="upload-zone"
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      gap: 12, padding: '40px 24px',
-                      border: '2px dashed #1e293b', borderRadius: 14, cursor: 'pointer',
-                      background: '#0a0f1a', transition: 'all 0.2s', textAlign: 'center',
-                    }}
-                  >
+                  <p style={{ color: '#64748b', fontSize: 14, marginBottom: 24 }}>Take a photo or upload an image — we'll extract and categorise every item automatically.</p>
+                  <label className="upload-zone" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '40px 24px', border: '2px dashed #1e293b', borderRadius: 14, cursor: 'pointer', background: '#0a0f1a', transition: 'all 0.2s', textAlign: 'center' }}>
                     <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
                     <div style={{ fontSize: 36 }}>{selectedFile ? '✅' : '📷'}</div>
-                    <div>
-                      <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: 14 }}>
-                        {selectedFile ? selectedFile.name : 'Click to choose a receipt image'}
-                      </div>
-                      {!selectedFile && (
-                        <div style={{ color: '#475569', fontSize: 12, marginTop: 4 }}>JPG, PNG, WEBP supported</div>
-                      )}
-                    </div>
-                    {selectedFile && (
-                      <div style={{ color: '#64748b', fontSize: 12 }}>Click to change file</div>
-                    )}
+                    <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: 14 }}>{selectedFile ? selectedFile.name : 'Click to choose a receipt image'}</div>
                   </label>
 
                   {selectedFile && (
-                    <button
-                      className="action-btn"
-                      onClick={handleUpload}
-                      disabled={loading}
-                      style={{
-                        marginTop: 16, width: '100%', padding: '12px 20px',
-                        background: loading ? '#1e3a5f' : '#2563eb',
-                        color: '#fff', border: 'none', borderRadius: 10,
-                        fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.15s', fontFamily: 'inherit',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      }}
-                    >
-                      {loading && (
-                        <span style={{
-                          width: 16, height: 16,
-                          border: '2px solid rgba(255,255,255,0.3)',
-                          borderTop: '2px solid #fff',
-                          borderRadius: '50%', display: 'inline-block',
-                          animation: 'spin 0.7s linear infinite',
-                        }} />
-                      )}
+                    <button className="action-btn" onClick={handleUpload} disabled={loading} style={{ marginTop: 16, width: '100%', padding: '12px 20px', background: loading ? '#1e3a5f' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                      {loading && <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
                       {loading ? 'Processing OCR…' : 'Scan & Parse Receipt'}
                     </button>
                   )}
@@ -373,93 +362,102 @@ function App() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                     <div>
                       <h2 style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9' }}>Review & Correct</h2>
-                      <p style={{ color: '#64748b', fontSize: 13, marginTop: 3 }}>Fix any OCR errors, then re-parse to update items.</p>
                     </div>
-                    <button
-                      onClick={() => { setIsEditing(false); setReceipt(null); setSelectedFile(null); setParsedItems([]); }}
-                      style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 20, lineHeight: 1, fontFamily: 'inherit' }}
-                    >
-                      ✕
+                    <button onClick={() => { setIsEditing(false); setReceipt(null); setSelectedFile(null); setParsedItems([]); setShowSplitPanel(false); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 20, fontFamily: 'inherit' }}>✕</button>
+                  </div>
+
+                  <div style={{ background: '#0a0f1a', border: '1px solid #1e293b', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                    <textarea rows={6} value={receipt.rawText} onChange={(e) => setReceipt({ rawText: e.target.value })} style={{ width: '100%', padding: '14px', border: 'none', background: 'transparent', color: '#94a3b8', fontFamily: 'monospace', fontSize: 12.5 }} />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8' }}>Extracted Summary</span>
+                    <button onClick={() => setShowSplitPanel(!showSplitPanel)} style={{ background: showSplitPanel ? '#1e3a8a' : '#0f172a', border: '1px solid #2563eb', color: '#3b82f6', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      👥 {showSplitPanel ? 'Close Split Workspace' : 'Link Friends & Split Cost'}
                     </button>
                   </div>
 
-                  {/* OCR text area */}
-                  <div style={{ background: '#0a0f1a', border: '1px solid #1e293b', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-                    <div style={{ padding: '10px 14px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Raw OCR Text</span>
-                      <button
-                        className="action-btn"
-                        onClick={handleReParse}
-                        disabled={reParsing}
-                        style={{
-                          background: '#1e293b', border: '1px solid #334155', color: '#94a3b8',
-                          padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                          cursor: reParsing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                          display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-                        }}
-                      >
-                        {reParsing && (
-                          <span style={{
-                            width: 10, height: 10,
-                            border: '1.5px solid #475569', borderTop: '1.5px solid #94a3b8',
-                            borderRadius: '50%', display: 'inline-block',
-                            animation: 'spin 0.7s linear infinite',
-                          }} />
-                        )}
-                        {reParsing ? 'Re-parsing…' : '↻ Re-parse'}
-                      </button>
-                    </div>
-                    <textarea
-                      rows={14}
-                      value={receipt.rawText}
-                      onChange={(e) => setReceipt({ rawText: e.target.value })}
-                      style={{
-                        width: '100%', padding: '14px', border: 'none',
-                        background: 'transparent', color: '#94a3b8',
-                        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                        fontSize: 12.5, lineHeight: 1.7, resize: 'vertical',
-                        transition: 'border 0.2s, box-shadow 0.2s',
-                      }}
-                    />
-                  </div>
+                  {showSplitPanel && (
+                    <div style={{ background: '#090d16', border: '1px solid #2563eb', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                      <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 12 }}>Relational Database Member Splitter</h3>
+                      
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                        <input
+                          type="email"
+                          placeholder="Enter friend's registered login email address..."
+                          value={friendSearchEmail}
+                          onChange={(e) => setFriendSearchEmail(e.target.value)}
+                          style={{ flex: 1, padding: '8px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13 }}
+                        />
+                        <button onClick={handleSearchFriend} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                          🔍 Link Account
+                        </button>
+                      </div>
 
-                  {/* Parsed items table */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                        {friendsList.map(f => (
+                          <span key={f.clerk_id} style={{ background: '#1e293b', border: '1px solid #475569', color: '#cbd5e1', padding: '4px 10px', borderRadius: 20, fontSize: 11 }}>
+                            👤 {f.display_name}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <label style={{ fontSize: 12, color: '#94a3b8' }}>Taxes / Sub-charges ($):</label>
+                        <input type="number" value={extraCharges} onChange={(e) => setExtraCharges(e.target.value)} style={{ width: 80, padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#f1f5f9' }} />
+                      </div>
+
+                      <button onClick={calculateLiveSplitMatrix} disabled={friendsList.length < 2 || calculatingSplit} style={{ width: '100%', padding: '10px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        {calculatingSplit && <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                        Compile Sync Balances
+                      </button>
+
+                      {splitResult && (
+                        <div style={{ marginTop: 16, background: '#020817', border: '1px solid #1e293b', borderRadius: 10, padding: 12 }}>
+                          <h4 style={{ fontSize: 12, fontWeight: 700, color: '#3b82f6', marginBottom: 8 }}>Cross-Account Final Breakdown Statement</h4>
+                          {Object.entries(splitResult).map(([uid, bill]: any) => (
+                            <div key={uid} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: '1px solid #1e293b' }}>
+                              <span style={{ color: '#cbd5e1' }}>{bill.display_name}:</span>
+                              <span style={{ color: '#f1f5f9', fontWeight: 700 }}>${bill.total?.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {parsedItems.length > 0 && (
                     <div style={{ background: '#0a0f1a', border: '1px solid #1e293b', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>
-                          {parsedItems.length} item{parsedItems.length !== 1 ? 's' : ''} found
-                        </span>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>${estimatedTotal.toFixed(2)}</span>
-                      </div>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                            <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Item</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Category</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Price</th>
-                          </tr>
-                        </thead>
                         <tbody>
                           {parsedItems.map((item, i) => {
                             const cs = getCategoryStyle(item.category);
+                            const currentAssignments = itemAssignments[i] || [];
                             return (
-                              <tr key={i} className="receipt-row" style={{ borderBottom: '1px solid #0f172a', transition: 'background 0.1s' }}>
-                                <td style={{ padding: '11px 16px', fontSize: 13, color: '#cbd5e1' }}>{item.name}</td>
-                                <td style={{ padding: '11px 16px' }}>
-                                  <span style={{
-                                    background: cs.bg, color: cs.text,
-                                    padding: '3px 9px', borderRadius: 6,
-                                    fontSize: 11, fontWeight: 600, letterSpacing: '0.02em',
-                                    whiteSpace: 'nowrap',
-                                  }}>
-                                    {item.category || 'Other'}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '11px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#f1f5f9', fontVariantNumeric: 'tabular-nums' }}>
-                                  ${item.price.toFixed(2)}
-                                </td>
-                              </tr>
+                              <React.Fragment key={i}>
+                                <tr>
+                                  <td style={{ padding: '11px 16px', fontSize: 13, color: '#cbd5e1' }}>{item.name}</td>
+                                  <td style={{ padding: '11px 16px' }}><span style={{ background: cs.bg, color: cs.text, padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{item.category}</span></td>
+                                  <td style={{ padding: '11px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600 }}>${item.price.toFixed(2)}</td>
+                                </tr>
+                                {showSplitPanel && (
+                                  <tr style={{ background: 'rgba(59,130,246,0.02)', borderBottom: '1px solid #1e293b' }}>
+                                    <td colSpan={3} style={{ padding: '4px 16px 12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 10, color: '#475569' }}>SPLIT WITH:</span>
+                                        {friendsList.map(f => {
+                                          const active = currentAssignments.includes(f.clerk_id);
+                                          return (
+                                            <span key={f.clerk_id} onClick={() => { toggleUserAssignment(i, f.clerk_id); setSplitResult(null); }} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer', background: active ? 'rgba(59,130,246,0.2)' : '#111', color: active ? '#60a5fa' : '#444', border: active ? '1px solid #2563eb' : '1px solid #222' }}>
+                                              {f.display_name.split(" ")[0]}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -467,50 +465,12 @@ function App() {
                     </div>
                   )}
 
-                  {parsedItems.length === 0 && !reParsing && (
-                    <div style={{ textAlign: 'center', padding: '24px 16px', color: '#475569', fontSize: 13 }}>
-                      No items detected. Try editing the text above and re-parsing.
-                    </div>
-                  )}
-
-                  {/* Save / cancel */}
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      className="action-btn"
-                      onClick={handleSave}
-                      disabled={saving || parsedItems.length === 0}
-                      style={{
-                        flex: 1, padding: '12px 20px',
-                        background: saving || parsedItems.length === 0 ? '#1e3a5f' : '#2563eb',
-                        color: '#fff', border: 'none', borderRadius: 10,
-                        fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.15s', fontFamily: 'inherit',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      }}
-                    >
-                      {saving && (
-                        <span style={{
-                          width: 14, height: 14,
-                          border: '2px solid rgba(255,255,255,0.3)',
-                          borderTop: '2px solid #fff',
-                          borderRadius: '50%', display: 'inline-block',
-                          animation: 'spin 0.7s linear infinite',
-                        }} />
-                      )}
-                      {saving ? 'Saving…' : 'Save Receipt'}
+                    <button className="action-btn" onClick={handleSave} disabled={saving || parsedItems.length === 0 || (showSplitPanel && !splitResult)} style={{ flex: 1, padding: '12px 20px', background: saving || parsedItems.length === 0 ? '#1e3a5f' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      {saving && <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                      {showSplitPanel ? 'Commit Shared Sync Save' : 'Save Receipt'}
                     </button>
-                    <button
-                      className="action-btn"
-                      onClick={() => { setIsEditing(false); setReceipt(null); setSelectedFile(null); setParsedItems([]); }}
-                      style={{
-                        padding: '12px 18px', background: 'transparent',
-                        color: '#64748b', border: '1px solid #1e293b', borderRadius: 10,
-                        fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                        transition: 'all 0.15s', fontFamily: 'inherit',
-                      }}
-                    >
-                      Cancel
-                    </button>
+                    <button className="action-btn" onClick={() => { setIsEditing(false); setReceipt(null); setSelectedFile(null); setParsedItems([]); setShowSplitPanel(false); setSplitResult(null); }} style={{ padding: '12px 18px', background: 'transparent', color: '#64748b', border: '1px solid #1e293b', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -521,104 +481,54 @@ function App() {
           {view === 'history' && (
             <div style={{ animation: 'fadeUp 0.2s ease' }}>
               <div style={{ marginBottom: 24 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Receipt History</h2>
-                <p style={{ color: '#64748b', fontSize: 14 }}>All your saved receipts in one place.</p>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Receipt History Ledger</h2>
+                <p style={{ color: '#64748b', fontSize: 14 }}>Displaying receipts belonging to or shared dynamically with your account.</p>
               </div>
 
-              {historyLoading && (
-                <div style={{ textAlign: 'center', padding: 40, color: '#475569' }}>Loading…</div>
-              )}
+              {historyLoading && <div style={{ textAlign: 'center', padding: 40, color: '#475569' }}>Loading records…</div>}
 
               {!historyLoading && history.length === 0 && (
-                <div style={{
-                  textAlign: 'center', padding: '60px 20px',
-                  border: '1px dashed #1e293b', borderRadius: 14,
-                }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
-                  <p style={{ color: '#64748b', fontWeight: 600 }}>No receipts saved yet</p>
-                  <p style={{ color: '#475569', fontSize: 13, marginTop: 4 }}>Upload your first receipt to see it here.</p>
+                <div style={{ textAlign: 'center', padding: '60px 20px', border: '1px dashed #1e293b', borderRadius: 14 }}>
+                  <p style={{ color: '#64748b', fontWeight: 600 }}>No record history linked to this node.</p>
                 </div>
               )}
 
-              {history.map((r) => {
-                const total = (r.parsed_items || []).reduce((s, i) => s + i.price, 0);
-                return (
-                  <div key={r.id} style={{
-                    background: '#0a0f1a', border: '1px solid #1e293b', borderRadius: 14,
-                    marginBottom: 14, overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '14px 18px', borderBottom: r.parsed_items?.length ? '1px solid #1e293b' : 'none',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{
-                          background: '#1e293b', color: '#64748b',
-                          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-                        }}>
-                          #{r.id}
-                        </span>
-                        <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>
-                          {new Date(r.created_at).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>
-                        ${total.toFixed(2)}
+              {history.map((r) => (
+                <div key={r.id} style={{ background: '#0a0f1a', border: r.is_owner ? '1px solid #1e293b' : '1px solid #10b981', borderRadius: 14, marginBottom: 14, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid #1e293b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ background: r.is_owner ? '#1e293b' : '#064e3b', color: r.is_owner ? '#94a3b8' : '#34d399', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                        {r.is_owner ? 'Owner' : `Shared by ${r.uploaded_by_name}`}
+                      </span>
+                      <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                        {new Date(r.created_at).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })}
                       </span>
                     </div>
-
-                    {r.parsed_items && r.parsed_items.length > 0 ? (
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <tbody>
-                          {r.parsed_items.map((item, i) => {
-                            const cs = getCategoryStyle(item.category);
-                            return (
-                              <tr
-                                key={i}
-                                className="receipt-row"
-                                style={{
-                                  borderBottom: i < r.parsed_items.length - 1 ? '1px solid #0f172a' : 'none',
-                                  transition: 'background 0.1s',
-                                }}
-                              >
-                                <td style={{ padding: '9px 18px', fontSize: 13, color: '#cbd5e1' }}>{item.name}</td>
-                                <td style={{ padding: '9px 18px' }}>
-                                  <span style={{
-                                    background: cs.bg, color: cs.text,
-                                    padding: '2px 8px', borderRadius: 6,
-                                    fontSize: 11, fontWeight: 600,
-                                  }}>
-                                    {item.category || 'Other'}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '9px 18px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
-                                  ${item.price.toFixed(2)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <p style={{ padding: '14px 18px', fontSize: 13, color: '#475569' }}>No items extracted.</p>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'end' }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>Your Share: ${r.amount_owed?.toFixed(2)}</span>
+                    </div>
                   </div>
-                );
-              })}
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <tbody>
+                      {r.parsed_items.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #0f172a' }}>
+                          <td style={{ padding: '9px 18px', fontSize: 13, color: '#cbd5e1' }}>{item.name}</td>
+                          <td style={{ padding: '9px 18px', textAlign: 'right', fontSize: 13, color: '#64748b' }}>${item.price.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           )}
 
           {/* ── DASHBOARD VIEW ── */}
           {view === 'dashboard' && (
             <div style={{ animation: 'fadeUp 0.2s ease' }}>
-              <div style={{ marginBottom: 24 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Spending Dashboard</h2>
-                <p style={{ color: '#64748b', fontSize: 14 }}>An overview of where your money goes.</p>
-              </div>
               <SpendingDashboard userId={user?.id || ''} />
             </div>
           )}
-
         </div>
       </SignedIn>
     </>
