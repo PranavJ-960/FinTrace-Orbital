@@ -99,6 +99,7 @@ function App() {
   const [splitResult, setSplitResult]       = useState<any | null>(null);
   const [calculatingSplit, setCalculatingSplit] = useState(false);
 
+  // Sync profile into the dynamic database index upon authentication
   useEffect(() => {
     if (user) {
       const myDisplayName = user.firstName || user.username || 'Me';
@@ -125,6 +126,7 @@ function App() {
     if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
   };
 
+  /* The core parsing pipeline state management mechanism */
   const handleParse = async (text: string) => {
     try {
       const res = await fetch('http://127.0.0.1:8000/api/parse', {
@@ -133,23 +135,29 @@ function App() {
         body: JSON.stringify({ raw_text: text }),
       });
       const data = await res.json();
-      setParsedItems(data.items || []);
       
-      const defaultAssignments: Record<number, string[]> = {};
-      (data.items || []).forEach((_: any, idx: number) => {
-        if (user) defaultAssignments[idx] = [user.id];
+      const newItems = data.items || [];
+      setParsedItems(newItems);
+      
+      // CRITICAL FIX: Dynamically construct new default items mapping states matching new lines length
+      const freshlyGeneratedAssignments: Record<number, string[]> = {};
+      newItems.forEach((_: any, idx: number) => {
+        if (user) freshlyGeneratedAssignments[idx] = [user.id];
       });
-      setItemAssignments(defaultAssignments);
+      
+      setItemAssignments(freshlyGeneratedAssignments);
+      setSplitResult(null); // Clear stale arithmetic calculations
     } catch {
       setParsedItems([]);
     }
   };
 
   const handleReParse = async () => {
-    if (!receipt) return;
+    if (!receipt || !receipt.rawText.trim()) return;
     setReParsing(true);
     await handleParse(receipt.rawText);
     setReParsing(false);
+    showToast("Workspace text re-parsed successfully!");
   };
 
   const handleUpload = async () => {
@@ -367,7 +375,36 @@ function App() {
                   </div>
 
                   <div style={{ background: '#0a0f1a', border: '1px solid #1e293b', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-                    <textarea rows={6} value={receipt.rawText} onChange={(e) => setReceipt({ rawText: e.target.value })} style={{ width: '100%', padding: '14px', border: 'none', background: 'transparent', color: '#94a3b8', fontFamily: 'monospace', fontSize: 12.5 }} />
+                    <div style={{ padding: '10px 14px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Raw OCR Workspace</span>
+                      <button
+                        className="action-btn"
+                        onClick={handleReParse}
+                        disabled={reParsing}
+                        style={{
+                          background: '#1e293b', border: '1px solid #334155', color: '#94a3b8',
+                          padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                          cursor: reParsing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                          display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+                        }}
+                      >
+                        {reParsing && (
+                          <span style={{
+                            width: 10, height: 10,
+                            border: '1.5px solid #475569', borderTop: '1.5px solid #94a3b8',
+                            borderRadius: '50%', display: 'inline-block',
+                            animation: 'spin 0.7s linear infinite',
+                          }} />
+                        )}
+                        {reParsing ? 'Re-parsing…' : '↻ Re-parse'}
+                      </button>
+                    </div>
+                    <textarea 
+                      rows={8} 
+                      value={receipt.rawText} 
+                      onChange={(e) => setReceipt({ rawText: e.target.value })} 
+                      style={{ width: '100%', padding: '14px', border: 'none', background: 'transparent', color: '#94a3b8', fontFamily: 'monospace', fontSize: 12.5, outline: 'none', resize: 'vertical' }} 
+                    />
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
