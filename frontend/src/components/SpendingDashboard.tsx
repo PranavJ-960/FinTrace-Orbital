@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
+  CartesianGrid, ResponsiveContainer,
   BarChart, Bar, Legend, Cell, PieChart, Pie
 } from 'recharts';
 
@@ -58,6 +59,9 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'breakdown'>('overview');
+  
+  const [dispatchingReport, setDispatchingReport] = useState(false);
+  const [dispatchStatus, setDispatchStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -75,6 +79,27 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, [userId, months]);
+
+  const handleTriggerReportRequest = async () => {
+    setDispatchingReport(true);
+    setDispatchStatus("Compiling data fields...");
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/request-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      });
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.detail || "Server pipeline error");
+      setDispatchStatus("📬 Report sent successfully!");
+      setTimeout(() => setDispatchStatus(null), 4000);
+    } catch (err: any) {
+      setDispatchStatus(`❌ Error: ${err.message}`);
+      setTimeout(() => setDispatchStatus(null), 4000);
+    } finally {
+      setDispatchingReport(false);
+    }
+  };
 
   if (!userId) return (
     <div style={styles.emptyState}>
@@ -136,6 +161,37 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
 
   return (
     <div style={styles.container}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, background: '#0f172a', border: '1px solid #1e293b', padding: 16, borderRadius: 12 }}>
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px 0' }}>Financial Fingerprint</h3>
+          <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Request a comprehensive insights statement directly via email.</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <button 
+            onClick={handleTriggerReportRequest}
+            disabled={dispatchingReport}
+            style={{
+              background: dispatchingReport ? '#1e3a5f' : '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 16px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: dispatchingReport ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+          >
+            {dispatchingReport && <span style={{ ...styles.spinner, width: 12, height: 12, margin: 0, border: '2px solid #1e293b', borderTop: '2px solid #fff' }} />}
+            {dispatchingReport ? 'Generating...' : '⚡ Email Report'}
+          </button>
+          {dispatchStatus && <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>{dispatchStatus}</span>}
+        </div>
+      </div>
+
       {data.anomalies && data.anomalies.length > 0 ? (
         <div style={styles.alertCard}>
           <div style={styles.alertTitle}>⚠️ Spending spike detected</div>
@@ -153,7 +209,6 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Stat Cards */}
       <div style={styles.statsRow}>
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Total Spent</div>
@@ -195,7 +250,6 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       </div>
 
-      {/* Tab Bar */}
       <div style={styles.tabBar}>
         {(['overview', 'categories', 'breakdown'] as const).map((tab) => (
           <button
@@ -211,7 +265,6 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         ))}
       </div>
 
-      {/* Overview: Area chart */}
       {activeTab === 'overview' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Spending Trend</div>
@@ -235,7 +288,6 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Categories: Pie + legend */}
       {activeTab === 'categories' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Spending by Category</div>
@@ -276,7 +328,6 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Breakdown: stacked bar */}
       {activeTab === 'breakdown' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Breakdown by Category</div>
@@ -301,129 +352,22 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    color: '#f1f5f9',
-    padding: '4px 0 24px',
-  },
-  alertCard: {
-    background: 'linear-gradient(135deg, rgba(239,68,68,0.16), rgba(249,115,22,0.12))',
-    border: '1px solid rgba(248,113,113,0.35)',
-    borderRadius: 12,
-    padding: '14px 16px',
-    marginBottom: 16,
-  },
-  infoCard: {
-    background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.10))',
-    border: '1px solid rgba(74,222,128,0.25)',
-    borderRadius: 12,
-    padding: '14px 16px',
-    marginBottom: 16,
-  },
-  alertTitle: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#fda4af',
-    marginBottom: 6,
-    letterSpacing: '0.03em',
-    textTransform: 'uppercase' as const,
-  },
-  statsRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-    gap: 12,
-    marginBottom: 20,
-  },
-  statCard: {
-    background: '#0f172a',
-    border: '1px solid #1e293b',
-    borderRadius: 12,
-    padding: '14px 16px',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase' as const,
-    color: '#475569',
-    marginBottom: 6,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: '#f1f5f9',
-    lineHeight: 1.1,
-  },
-  tabBar: {
-    display: 'flex',
-    gap: 4,
-    background: '#0f172a',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 16,
-    border: '1px solid #1e293b',
-  },
-  tab: {
-    flex: 1,
-    padding: '7px 12px',
-    border: 'none',
-    borderRadius: 7,
-    background: 'transparent',
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  tabActive: {
-    background: '#1e293b',
-    color: '#f1f5f9',
-  },
-  chartCard: {
-    background: '#0f172a',
-    border: '1px solid #1e293b',
-    borderRadius: 12,
-    padding: '20px 16px',
-  },
-  chartTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#94a3b8',
-    marginBottom: 16,
-    letterSpacing: '0.02em',
-  },
-  legendRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '6px 0',
-    borderBottom: '1px solid #1e293b',
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  emptyState: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '60px 20px',
-    textAlign: 'center' as const,
-    gap: 4,
-  },
-  emptyIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  spinner: {
-    width: 32,
-    height: 32,
-    border: '3px solid #1e293b',
-    borderTop: '3px solid #3b82f6',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
-  },
+  container: { fontFamily: "'Inter', 'Segoe UI', sans-serif", color: '#f1f5f9', padding: '4px 0 24px' },
+  alertCard: { background: 'linear-gradient(135deg, rgba(239,68,68,0.16), rgba(249,115,22,0.12))', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 },
+  infoCard: { background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.10))', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 },
+  alertTitle: { fontSize: 13, fontWeight: 700, color: '#fda4af', marginBottom: 6, letterSpacing: '0.03em', textTransform: 'uppercase' as const },
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 },
+  statCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: '14px 16px' },
+  statLabel: { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#475569', marginBottom: 6 },
+  statValue: { fontSize: 22, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.1 },
+  tabBar: { display: 'flex', gap: 4, background: '#0f172a', borderRadius: 10, padding: 4, marginBottom: 16, border: '1px solid #1e293b' },
+  tab: { flex: 1, padding: '7px 12px', border: 'none', borderRadius: 7, background: 'transparent', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' },
+  tabActive: { background: '#1e293b', color: '#f1f5f9' },
+  chartCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: '20px 16px' },
+  chartTitle: { fontSize: 14, fontWeight: 600, color: '#94a3b8', marginBottom: 16, letterSpacing: '0.02em' },
+  legendRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #1e293b' },
+  legendDot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
+  emptyState: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center' as const, gap: 4 },
+  emptyIcon: { fontSize: 40, marginBottom: 8 },
+  spinner: { width: 32, height: 32, border: '3px solid #1e293b', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
 };
