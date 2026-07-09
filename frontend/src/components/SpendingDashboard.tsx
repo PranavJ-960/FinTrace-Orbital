@@ -8,6 +8,7 @@ interface SpendingSummary {
   totals: { overall: number; by_category: Record<string, number> };
   monthly: Array<{ month: string; total: number; by_category: Record<string, number> }>;
   categories: string[];
+  anomalies?: Array<{ month: string; total: number; expected_total: number; deviation: number; deviation_pct: number; z_score: number; severity: string; reason: string }>;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -135,6 +136,23 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
 
   return (
     <div style={styles.container}>
+      {data.anomalies && data.anomalies.length > 0 ? (
+        <div style={styles.alertCard}>
+          <div style={styles.alertTitle}>⚠️ Spending spike detected</div>
+          <div style={{ color: '#f1f5f9', fontWeight: 600, marginBottom: 4 }}>
+            {data.anomalies[0].month}: ${data.anomalies[0].total.toFixed(2)} spent
+          </div>
+          <div style={{ color: '#cbd5e1', fontSize: 13 }}>
+            {data.anomalies[0].reason} Expected about ${data.anomalies[0].expected_total.toFixed(2)} based on recent history.
+          </div>
+        </div>
+      ) : (
+        <div style={styles.infoCard}>
+          <div style={styles.alertTitle}>📈 Spending trend looks steady</div>
+          <div style={{ color: '#cbd5e1', fontSize: 13 }}>No unusual monthly spikes were detected in the current window.</div>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div style={styles.statsRow}>
         <div style={styles.statCard}>
@@ -287,6 +305,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
     color: '#f1f5f9',
     padding: '4px 0 24px',
+  },
+  alertCard: {
+    background: 'linear-gradient(135deg, rgba(239,68,68,0.16), rgba(249,115,22,0.12))',
+    border: '1px solid rgba(248,113,113,0.35)',
+    borderRadius: 12,
+    padding: '14px 16px',
+    marginBottom: 16,
+  },
+  infoCard: {
+    background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.10))',
+    border: '1px solid rgba(74,222,128,0.25)',
+    borderRadius: 12,
+    padding: '14px 16px',
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: '#fda4af',
+    marginBottom: 6,
+    letterSpacing: '0.03em',
+    textTransform: 'uppercase' as const,
   },
   statsRow: {
     display: 'grid',

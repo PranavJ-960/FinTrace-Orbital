@@ -156,9 +156,9 @@ Current implementation includes:
 
 ## 4.2 Extension Features (Milestone 3)
 
-### Feature 7 — Statistical Anomaly Detection
+### Feature 7 — Statistical Anomaly Detection ✅
 
-Detect unusual spending behaviour using statistical analysis such as z-scores and deviations from historical averages.
+Detect unusual spending behaviour using simple statistical analysis over recent monthly totals. The backend computes a rolling average and standard deviation from historical spending, then flags months whose totals deviate sharply from the norm. These alerts are surfaced in the dashboard so users can spot unusual spikes early.
 
 ### Feature 8 — Receipt Splitting
 

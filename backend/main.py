@@ -5,6 +5,7 @@ import psycopg2
 import os
 import re
 import json
+import statistics
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -38,6 +39,51 @@ VALID_CATEGORIES = [
     "Entertainment", "Utilities", "Shopping", "Education",
     "Personal Care", "Other"
 ]
+
+
+def detect_spending_anomalies(monthly_totals, z_threshold: float = 2.0, min_points: int = 3):
+    if len(monthly_totals) < min_points:
+        return []
+
+    totals = [float(item.get("total", 0.0)) for item in monthly_totals if item.get("total") is not None]
+    if len(totals) < min_points:
+        return []
+
+    mean_total = statistics.fmean(totals)
+    if mean_total <= 0:
+        return []
+
+    std_dev = statistics.pstdev(totals)
+    anomalies = []
+
+    for item in monthly_totals:
+        total = float(item.get("total", 0.0))
+        if total <= 0:
+            continue
+
+        if std_dev > 0:
+            z_score = (total - mean_total) / std_dev
+        else:
+            z_score = 0.0
+
+        deviation_pct = ((total - mean_total) / mean_total) * 100 if mean_total > 0 else 0.0
+        is_anomaly = z_score >= z_threshold or deviation_pct >= 60.0
+
+        if is_anomaly:
+            severity = "high" if z_score >= z_threshold or deviation_pct >= 60.0 else "medium"
+            anomalies.append({
+                "month": item.get("month"),
+                "total": round(total, 2),
+                "expected_total": round(mean_total, 2),
+                "deviation": round(total - mean_total, 2),
+                "deviation_pct": round(deviation_pct, 2),
+                "z_score": round(z_score, 2),
+                "severity": severity,
+                "reason": "Spending was significantly above the recent monthly average."
+            })
+
+    return anomalies
+
 
 def get_db():
     return psycopg2.connect(
@@ -344,10 +390,13 @@ async def get_spending_summary(user_id: str, months: int = 6):
         cur.close()
         conn.close()
 
+        anomalies = detect_spending_anomalies(monthly_list)
+
         return {
             'totals': { 'overall': round(overall_total, 2), 'by_category': {k: round(v, 2) for k, v in by_category.items()} },
             'monthly': monthly_list,
-            'categories': sorted(list(categories_set)) or VALID_CATEGORIES
+            'categories': sorted(list(categories_set)) or VALID_CATEGORIES,
+            'anomalies': anomalies
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
