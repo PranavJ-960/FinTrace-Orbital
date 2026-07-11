@@ -31,6 +31,9 @@ interface ReceiptRecord {
 
 type View = 'upload' | 'history' | 'dashboard';
 
+// Reading dynamic environmental base variable safely
+const API_URL = import.meta.env.VITE_API_URL;
+
 // Dynamic Category Colors mapped alongside modern accessible icons
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; hex: string; icon: string }> = {
   'Food & Beverage': { bg: 'rgba(249,115,22,0.12)', text: '#fb923c', hex: '#f97316', icon: '🍔' },
@@ -132,7 +135,7 @@ function App() {
       const myDisplayName = user.firstName || user.username || 'Me';
       const myEmail = user.primaryEmailAddress?.emailAddress || '';
       
-      fetch('http://127.0.0.1:8000/api/sync-user', {
+      fetch(`${API_URL}/api/sync-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clerk_id: user.id, email: myEmail, display_name: myDisplayName })
@@ -183,7 +186,7 @@ function App() {
 
   const handleParse = async (text: string) => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/parse', {
+      const res = await fetch(`${API_URL}/api/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw_text: text }),
@@ -230,7 +233,7 @@ function App() {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/upload', { method: 'POST', body: formData });
+      const res = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setReceipt({ rawText: data.text || '' });
@@ -249,7 +252,7 @@ function App() {
   const handleSearchFriend = async () => {
     if (!friendSearchEmail.trim()) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/search-friend?email=${encodeURIComponent(friendSearchEmail.trim())}`);
+      const res = await fetch(`${API_URL}/api/search-friend?email=${encodeURIComponent(friendSearchEmail.trim())}`);
       if (!res.ok) {
         showToast("We couldn't find anyone with that email.");
         return;
@@ -276,7 +279,7 @@ function App() {
     }));
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/split-receipt', {
+      const res = await fetch(`${API_URL}/api/split-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -310,7 +313,7 @@ function App() {
     if (!receipt || !user) return;
     setSaving(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/save', {
+      const res = await fetch(`${API_URL}/api/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -340,7 +343,7 @@ function App() {
     if (!user) return;
     setHistoryLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/receipts?user_id=${user.id}`);
+      const res = await fetch(`${API_URL}/api/receipts?user_id=${user.id}`);
       const data = await res.json();
       setHistory(data.receipts || []);
     } catch {
@@ -711,7 +714,7 @@ function App() {
                 {/* Physical Receipt Presentation Mode Interface */}
                 {isEditing && receipt && (
                   <div className="receipt-paper-card" style={{ padding: '36px 28px 28px', animation: 'fadeIn 0.3s ease' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px dashed #D1D5DB', paddingBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', marginBottom: 20, borderBottom: '1px dashed #D1D5DB', paddingBottom: 12 }}>
                       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingRight: 16 }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', letterSpacing: '0.02em' }}>Review Results</h3>
                         <p style={{ color: '#4B5563', fontSize: 12, marginTop: 2 }}>Check everything looks right, then save.</p>
@@ -721,7 +724,7 @@ function App() {
 
                     {/* Raw Input Window */}
                     <div style={{ background: '#F3F4F6', borderRadius: 8, overflow: 'hidden', marginBottom: 20, border: '1px solid #E5E7EB' }}>
-                      <div style={{ padding: '8px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ padding: '8px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifycontent: 'space-between' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>ORIGINAL TEXT</span>
                         <button className="action-secondary" onClick={handleReParse} disabled={reParsing} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 11, background: '#fff', color: '#374151', border: '1px solid #D1D5DB' }}>
                           Re-scan
@@ -736,7 +739,7 @@ function App() {
                     </div>
 
                     {/* Actions Grid */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>ITEMS</span>
                       <button onClick={() => setShowSplitPanel(!showSplitPanel)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'transparent', color: '#2563EB', border: '1px solid #93C5FD', cursor: 'pointer', fontWeight: 600 }}>
                         👥 {showSplitPanel ? 'Close' : 'Split Bill'}
@@ -774,7 +777,7 @@ function App() {
                         {splitResult && (
                           <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: 10 }}>
                             {Object.entries(splitResult).map(([uid, bill]: any) => (
-                              <div key={uid} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
+                              <div key={uid} style={{ display: 'flex', justifycontent: 'space-between', padding: '4px 0', fontSize: 12 }}>
                                 <span style={{ color: '#4B5563' }}>{bill.display_name}</span>
                                 <span style={{ color: '#111827', fontWeight: 600 }}>${bill.total?.toFixed(2)}</span>
                               </div>
@@ -864,7 +867,7 @@ function App() {
 
                 {historyLoading && (
                   <div style={{ padding: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                    <span style={{ width: 28, height: 28, border: '3px solid rgba(255,255,255,0.05)', borderTop: '3px solid #10b981', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                    <span style={{ width: 28, height: 28, border: '3px solid rgba(255,255,255,0.05)', borderTop: '3px solid #10b981', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
                     <span style={{ color: '#64748b', fontSize: 13 }}>Loading your receipts...</span>
                   </div>
                 )}
@@ -877,7 +880,7 @@ function App() {
 
                 {history.map((r) => (
                   <div key={r.id} className="workspace-card" style={{ overflow: 'hidden', borderLeft: r.is_owner ? '1px solid rgba(255,255,255,0.05)' : '3px solid #10b981' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ background: r.is_owner ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', color: r.is_owner ? '#94a3b8' : '#34d399', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>
                           {r.is_owner ? 'Yours' : `Shared by ${r.uploaded_by_name}`}
