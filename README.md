@@ -224,6 +224,15 @@ Using `pytest`:
 - OCR preprocessing tests
 - Price extraction tests
 - Category matching tests
+- API endpoint tests for `/api/save`, `/api/receipts`, `/api/spending-summary`, `/api/parse`, and `/api/upload`
+- Regression tests for anomaly detection logic
+
+Run backend tests from the repository root:
+
+```bash
+cd backend
+.\venv\Scripts\python -m pytest -q tests
+```
 
 ### Frontend Testing
 
@@ -292,7 +301,7 @@ source venv/bin/activate        # macOS/Linux
 venv\Scripts\activate           # Windows
 
 # Install dependencies
-pip install fastapi uvicorn python-multipart opencv-python pytesseract numpy
+pip install -r requirements.txt
 
 # Run backend server
 uvicorn main:app --reload

@@ -466,6 +466,8 @@ async def save_receipt(request: Request):
         cur.close()
         conn.close()
         return {"success": True, "receipt_id": new_receipt_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -635,7 +637,10 @@ async def upload_receipt(file: UploadFile = File(...)):
         if img is None: raise HTTPException(status_code=400, detail="Decode error.")
         txt = pytesseract.image_to_string(preprocess_image(img), config=r'--psm 6')
         return {"text": txt}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/parse")
 async def parse_receipt(request: Request):
