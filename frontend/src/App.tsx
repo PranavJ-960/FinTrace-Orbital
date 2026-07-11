@@ -714,7 +714,7 @@ function App() {
                 {/* Physical Receipt Presentation Mode Interface */}
                 {isEditing && receipt && (
                   <div className="receipt-paper-card" style={{ padding: '36px 28px 28px', animation: 'fadeIn 0.3s ease' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', marginBottom: 20, borderBottom: '1px dashed #D1D5DB', paddingBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px dashed #D1D5DB', paddingBottom: 12 }}>
                       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingRight: 16 }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', letterSpacing: '0.02em' }}>Review Results</h3>
                         <p style={{ color: '#4B5563', fontSize: 12, marginTop: 2 }}>Check everything looks right, then save.</p>
@@ -724,7 +724,7 @@ function App() {
 
                     {/* Raw Input Window */}
                     <div style={{ background: '#F3F4F6', borderRadius: 8, overflow: 'hidden', marginBottom: 20, border: '1px solid #E5E7EB' }}>
-                      <div style={{ padding: '8px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifycontent: 'space-between' }}>
+                      <div style={{ padding: '8px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>ORIGINAL TEXT</span>
                         <button className="action-secondary" onClick={handleReParse} disabled={reParsing} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 11, background: '#fff', color: '#374151', border: '1px solid #D1D5DB' }}>
                           Re-scan
@@ -739,7 +739,7 @@ function App() {
                     </div>
 
                     {/* Actions Grid */}
-                    <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>ITEMS</span>
                       <button onClick={() => setShowSplitPanel(!showSplitPanel)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'transparent', color: '#2563EB', border: '1px solid #93C5FD', cursor: 'pointer', fontWeight: 600 }}>
                         👥 {showSplitPanel ? 'Close' : 'Split Bill'}
@@ -777,7 +777,7 @@ function App() {
                         {splitResult && (
                           <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: 10 }}>
                             {Object.entries(splitResult).map(([uid, bill]: any) => (
-                              <div key={uid} style={{ display: 'flex', justifycontent: 'space-between', padding: '4px 0', fontSize: 12 }}>
+                              <div key={uid} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
                                 <span style={{ color: '#4B5563' }}>{bill.display_name}</span>
                                 <span style={{ color: '#111827', fontWeight: 600 }}>${bill.total?.toFixed(2)}</span>
                               </div>
@@ -880,7 +880,7 @@ function App() {
 
                 {history.map((r) => (
                   <div key={r.id} className="workspace-card" style={{ overflow: 'hidden', borderLeft: r.is_owner ? '1px solid rgba(255,255,255,0.05)' : '3px solid #10b981' }}>
-                    <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ background: r.is_owner ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', color: r.is_owner ? '#94a3b8' : '#34d399', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>
                           {r.is_owner ? 'Yours' : `Shared by ${r.uploaded_by_name}`}
