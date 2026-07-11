@@ -25,6 +25,9 @@ from google.genai import types
 
 load_dotenv()
 
+if os.name == 'posix':  # This means it's running on Linux/Docker (Render)
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 app = FastAPI(title="FinTrace API")
