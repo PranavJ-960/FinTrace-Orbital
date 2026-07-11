@@ -6,9 +6,7 @@ import os
 import re
 import json
 import statistics
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import resend  # <-- Added missing Resend package layer initialization
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -157,30 +155,26 @@ def get_db():
         port=os.getenv("DB_PORT", 5432)
     )
 
-def send_report_email(recipient_email: str, html_content: str):
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
+# Initialize the Resend API client safely using the environment variable string records
+resend.api_key = os.getenv("RESEND_API_KEY")
 
-    if not smtp_user or not smtp_password:
-        print("[Email Dispatch Error] Missing server credentials in environmental records.")
+def send_report_email(recipient_email: str, html_content: str):
+    if not resend.api_key:
+        print("[Email Dispatch Error] Missing RESEND_API_KEY in environmental records.")
         return False
 
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = "FinTrace — Your Financial Fingerprint Report"
-    msg['From'] = smtp_user
-    msg['To'] = recipient_email
-    msg.attach(MIMEText(html_content, 'html'))
-
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.sendmail(smtp_user, recipient_email, msg.as_string())
+        params = {
+            "from": "FinTrace <onboarding@resend.dev>",
+            "to": [recipient_email],
+            "subject": "FinTrace — Your Financial Fingerprint Report",
+            "html": html_content,
+        }
+        
+        resend.Emails.send(params)
         return True
     except Exception as e:
-        print(f"[SMTP Server Dispatch Failure]: {str(e)}")
+        print(f"[Resend API Pipeline Failure]: {str(e)}")
         return False
 
 def compile_and_send_report_for_user(user_id: str, recipient_email: str):
@@ -252,7 +246,6 @@ def automated_monthly_report_job():
     try:
         conn = get_db()
         cur = conn.cursor()
-        # Enforce filter constraint: Only compile details for profiles who agreed to automated tracking checks
         cur.execute("SELECT clerk_id, email FROM users_directory WHERE email_reports_enabled = TRUE;")
         users = cur.fetchall()
         cur.close()
