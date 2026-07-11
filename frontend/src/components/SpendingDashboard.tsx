@@ -54,6 +54,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+// Pull the global build-time environment variable safely
+const API_URL = import.meta.env.VITE_API_URL;
+
 export default function SpendingDashboard({ userId, months = 6 }: { userId: string; months?: number }) {
   const [data, setData] = useState<SpendingSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,7 +69,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/spending-summary?user_id=${encodeURIComponent(userId)}&months=${months}`)
+    fetch(`${API_URL}/api/spending-summary?user_id=${encodeURIComponent(userId)}&months=${months}`)
       .then(async (r) => {
         const text = await r.text();
         if (!r.ok) throw new Error(`Failed to load summary (${r.status}): ${text}`);
@@ -84,7 +87,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
     setDispatchingReport(true);
     setDispatchStatus("Compiling data fields...");
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/request-report', {
+      const response = await fetch(`${API_URL}/api/request-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId })
