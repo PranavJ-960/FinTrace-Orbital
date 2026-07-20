@@ -6,7 +6,9 @@ import os
 import re
 import json
 import statistics
-import resend  # <-- Added missing Resend package layer initialization
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -155,26 +157,32 @@ def get_db():
         port=os.getenv("DB_PORT", 5432)
     )
 
-# Initialize the Resend API client safely using the environment variable string records
-resend.api_key = os.getenv("RESEND_API_KEY")
-
 def send_report_email(recipient_email: str, html_content: str):
-    if not resend.api_key:
-        print("[Email Dispatch Error] Missing RESEND_API_KEY in environmental records.")
+    smtp_server   = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port     = int(os.getenv("SMTP_PORT", 465))
+    smtp_user     = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+
+    if not smtp_user or not smtp_password:
+        print("[Email Error] Missing SMTP_USER or SMTP_PASSWORD in .env")
         return False
 
     try:
-        params = {
-            "from": "FinTrace <onboarding@resend.dev>",
-            "to": [recipient_email],
-            "subject": "FinTrace — Your Financial Fingerprint Report",
-            "html": html_content,
-        }
-        
-        resend.Emails.send(params)
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "FinTrace — Your Financial Fingerprint Report"
+        msg["From"]    = f"FinTrace <{smtp_user}>"
+        msg["To"]      = recipient_email
+        msg.attach(MIMEText(html_content, "html"))
+
+        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, recipient_email, msg.as_string())
+
+        print(f"[Email Sent] Report dispatched to {recipient_email}")
         return True
+
     except Exception as e:
-        print(f"[Resend API Pipeline Failure]: {str(e)}")
+        print(f"[Email Error] {str(e)}")
         return False
 
 def compile_and_send_report_for_user(user_id: str, recipient_email: str):
