@@ -10,6 +10,7 @@ import httpx
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -670,6 +671,6 @@ async def parse_receipt(request: Request):
     if not raw_text: raise HTTPException(status_code=400, detail="raw_text required.")
     return {"items": parse_receipt_items(raw_text)}
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def health_check():
-    return {"status": "ok", "service": "FinTrace API"}
+    return JSONResponse({"status": "ok", "service": "FinTrace API"})
