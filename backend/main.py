@@ -6,9 +6,9 @@ import os
 import re
 import json
 import statistics
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import httpx
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -52,6 +52,8 @@ VALID_CATEGORIES = [
     "Entertainment", "Utilities", "Shopping", "Education",
     "Personal Care", "Other"
 ]
+
+_executor = ThreadPoolExecutor(max_workers=2)
 
 # Pydantic Validation Models for Post Routes
 class ReportRequest(BaseModel):
@@ -158,29 +160,32 @@ def get_db():
     )
 
 def send_report_email(recipient_email: str, html_content: str):
-    smtp_server   = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port     = int(os.getenv("SMTP_PORT", 465))
-    smtp_user     = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-
-    if not smtp_user or not smtp_password:
-        print("[Email Error] Missing SMTP_USER or SMTP_PASSWORD in .env")
+    api_key = os.getenv("BREVO_API_KEY")
+    if not api_key:
+        print("[Email Error] Missing BREVO_API_KEY")
         return False
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "FinTrace — Your Financial Fingerprint Report"
-        msg["From"]    = f"FinTrace <{smtp_user}>"
-        msg["To"]      = recipient_email
-        msg.attach(MIMEText(html_content, "html"))
-
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-            server.login(smtp_user, smtp_password)
-            server.sendmail(smtp_user, recipient_email, msg.as_string())
-
-        print(f"[Email Sent] Report dispatched to {recipient_email}")
-        return True
-
+        response = httpx.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": api_key,
+                "Content-Type": "application/json"
+            },
+            json={
+                "sender": {"name": "FinTrace", "email": "pranavj04@gmail.com"},
+                "to": [{"email": recipient_email}],
+                "subject": "FinTrace — Your Financial Fingerprint Report",
+                "htmlContent": html_content
+            },
+            timeout=15
+        )
+        if response.status_code == 201:
+            print(f"[Email Sent] Report dispatched to {recipient_email}")
+            return True
+        else:
+            print(f"[Email Error] Brevo returned {response.status_code}: {response.text}")
+            return False
     except Exception as e:
         print(f"[Email Error] {str(e)}")
         return False
@@ -335,13 +340,21 @@ async def request_report(payload: ReportRequest):
         row = cur.fetchone()
         cur.close()
         conn.close()
+
         if not row:
             raise HTTPException(status_code=404, detail="User account signature entry missing.")
-        
-        success = compile_and_send_report_for_user(payload.user_id, row[0])
-        if not success:
-            raise HTTPException(status_code=500, detail="Mail node failed.")
+
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(
+            _executor,
+            compile_and_send_report_for_user,
+            payload.user_id,
+            row[0]
+        )
+
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -656,3 +669,7 @@ async def parse_receipt(request: Request):
     raw_text = body.get("raw_text")
     if not raw_text: raise HTTPException(status_code=400, detail="raw_text required.")
     return {"items": parse_receipt_items(raw_text)}
+
+@app.get("/")
+def health_check():
+    return {"status": "ok", "service": "FinTrace API"}
