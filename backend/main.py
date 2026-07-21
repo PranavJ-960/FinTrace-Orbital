@@ -8,14 +8,20 @@ import json
 import statistics
 import httpx
 import asyncio
+import io
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
 # Machine Learning & Google Gemini AI Imports
 from dataset import TRAINING_DATA
@@ -26,19 +32,17 @@ from google.genai import types
 
 load_dotenv()
 
-if os.name == 'posix':  # This means it's running on Linux/Docker (Render)
+if os.name == 'posix':
     pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
-
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 app = FastAPI(title="FinTrace API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173", 
-        "https://fintraceorbital.vercel.app"  # <-- Removed the "/" at the end!
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://fintraceorbital.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -56,61 +60,9 @@ VALID_CATEGORIES = [
 
 _executor = ThreadPoolExecutor(max_workers=2)
 
-# Pydantic Validation Models for Post Routes
-class ReportRequest(BaseModel):
-    user_id: str
-
 class PreferenceRequest(BaseModel):
     user_id: str
     email_reports_enabled: bool
-
-HTML_REPORT_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>FinTrace Financial Fingerprint Report</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #020817; color: #f1f5f9; margin: 0; padding: 20px; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; }}
-        .header {{ border-bottom: 1px solid #1e293b; padding-bottom: 16px; margin-bottom: 20px; }}
-        .title {{ color: #3b82f6; font-size: 24px; font-weight: 700; margin: 0; }}
-        .subtitle {{ color: #64748b; font-size: 14px; margin: 4px 0 0 0; }}
-        .stat-grid {{ width: 100%; margin-bottom: 20px; }}
-        .stat-card {{ background: #1e293b; padding: 14px; border-radius: 8px; text-align: center; }}
-        .stat-label {{ font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-bottom: 4px; }}
-        .stat-value {{ font-size: 18px; font-weight: 700; color: #f1f5f9; }}
-        .section-title {{ font-size: 15px; font-weight: 600; color: #94a3b8; margin: 20px 0 10px 0; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }}
-        .anomaly-alert {{ background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 12px; margin-bottom: 16px; }}
-        .anomaly-title {{ color: #fca5a5; font-size: 13px; font-weight: 700; margin-bottom: 4px; }}
-        .item-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-        .item-row td {{ padding: 10px; border-bottom: 1px solid #1e293b; font-size: 13px; }}
-        .item-name {{ color: #cbd5e1; }}
-        .item-val {{ text-align: right; color: #f1f5f9; font-weight: 600; }}
-        .footer {{ text-align: center; font-size: 11px; color: #475569; margin-top: 24px; padding-top: 12px; border-top: 1px solid #1e293b; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 class="title">FinTrace Insights</h1>
-            <p class="subtitle">Your Personalized Financial Fingerprint Report</p>
-        </div>
-        {anomaly_block}
-        <table class="stat-grid" cellspacing="8">
-            <tr>
-                <td class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-value">${overall_total:.2f}</div></td>
-                <td class="stat-card"><div class="stat-label">Monthly Average</div><div class="stat-value">${monthly_avg:.2f}</div></td>
-                <td class="stat-card"><div class="stat-label">Active Windows</div><div class="stat-value">{month_count} Mos</div></td>
-            </tr>
-        </table>
-        <div class="section-title">Spending Distributions by Category</div>
-        <table class="item-table">{category_rows}</table>
-        <div class="footer">Sent automatically via your FinTrace Instance Architecture.<br>NUS Orbital 2026</div>
-    </div>
-</body>
-</html>
-"""
 
 def detect_spending_anomalies(monthly_totals, z_threshold: float = 2.0, min_points: int = 3):
     if len(monthly_totals) < min_points:
@@ -160,101 +112,6 @@ def get_db():
         port=os.getenv("DB_PORT", 5432)
     )
 
-def send_report_email(recipient_email: str, html_content: str):
-    api_key = os.getenv("BREVO_API_KEY")
-    if not api_key:
-        print("[Email Error] Missing BREVO_API_KEY")
-        return False
-
-    try:
-        response = httpx.post(
-            "https://api.brevo.com/v3/smtp/email",
-            headers={
-                "api-key": api_key,
-                "Content-Type": "application/json"
-            },
-            json={
-                "sender": {"name": "FinTrace", "email": "pranavj04@gmail.com"},
-                "to": [{"email": recipient_email}],
-                "subject": "FinTrace — Your Financial Fingerprint Report",
-                "htmlContent": html_content
-            },
-            timeout=15
-        )
-        if response.status_code == 201:
-            print(f"[Email Sent] Report dispatched to {recipient_email}")
-            return True
-        else:
-            print(f"[Email Error] Brevo returned {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print(f"[Email Error] {str(e)}")
-        return False
-
-def compile_and_send_report_for_user(user_id: str, recipient_email: str):
-    conn = get_db()
-    cur = conn.cursor()
-    
-    cur.execute("""
-        SELECT to_char(date_trunc('month', r.created_at), 'YYYY-MM') AS month,
-               COALESCE(elem->>'category', 'Other') AS category,
-               SUM((elem->>'price')::numeric) AS total
-        FROM receipts r
-        JOIN receipt_shares rs ON r.id = rs.receipt_id,
-        jsonb_array_elements(r.parsed_items) AS elem
-        WHERE rs.user_id = %s
-        GROUP BY month, category
-        ORDER BY month;
-    """, (user_id,))
-    rows = cur.fetchall()
-
-    monthly_map = {}
-    category_totals = {}
-    overall_total = 0.0
-
-    for month, cat, total in rows:
-        val = float(total)
-        overall_total += val
-        category_totals[cat] = category_totals.get(cat, 0.0) + val
-        monthly_map.setdefault(month, {"month": month, "total": 0.0})
-        monthly_map[month]["total"] += val
-
-    monthly_list = sorted(list(monthly_map.values()), key=lambda x: x["month"])
-    anomalies = detect_spending_anomalies(monthly_list)
-
-    anomaly_block = ""
-    if anomalies:
-        anomaly_block = f"""
-        <div class="anomaly-alert">
-            <div class="anomaly-title">⚠️ SPENDING SPIKE DETECTED</div>
-            <p style="margin: 0; font-size: 13px; color: #cbd5e1;">
-                In <strong>{anomalies[0]['month']}</strong>, spending hit <strong>${anomalies[0]['total']:.2f}</strong>.
-            </p>
-        </div>
-        """
-
-    category_rows = ""
-    for cat in sorted(category_totals.keys()):
-        category_rows += f"""
-        <tr class="item-row">
-            <td class="item-name">{cat}</td>
-            <td class="item-val">${category_totals[cat]:.2f}</td>
-        </tr>
-        """
-
-    month_count = max(len(monthly_list), 1)
-    compiled_html = HTML_REPORT_TEMPLATE.format(
-        anomaly_block=anomaly_block,
-        overall_total=overall_total,
-        monthly_avg=overall_total / month_count,
-        month_count=month_count,
-        category_rows=category_rows
-    )
-
-    cur.close()
-    conn.close()
-    return send_report_email(recipient_email, compiled_html)
-
 def automated_monthly_report_job():
     print(f"[{datetime.now()}] APScheduler background cron executing monthly opt-in report loop...")
     try:
@@ -264,10 +121,7 @@ def automated_monthly_report_job():
         users = cur.fetchall()
         cur.close()
         conn.close()
-        
-        for uid, email in users:
-            print(f"Sending automated report summary to verified profile link: {email}")
-            compile_and_send_report_for_user(uid, email)
+        print(f"[Cron] Found {len(users)} users with reports enabled.")
     except Exception as e:
         print(f"[Automation Cron Pipeline Failure]: {str(e)}")
 
@@ -275,14 +129,14 @@ def automated_monthly_report_job():
 def startup_pipeline():
     conn = get_db()
     cur = conn.cursor()
-    
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS receipts (
             id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, raw_text TEXT NOT NULL,
             parsed_items JSONB, created_at TIMESTAMP DEFAULT NOW()
         );
     """)
-    
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users_directory (
             clerk_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
@@ -296,7 +150,7 @@ def startup_pipeline():
             user_id TEXT NOT NULL, amount_owed NUMERIC(10, 2) DEFAULT 0.00, is_owner BOOLEAN DEFAULT FALSE
         );
     """)
-    
+
     conn.commit()
     cur.close()
     conn.close()
@@ -305,57 +159,206 @@ def startup_pipeline():
     global vectorizer, classifier
     texts = [item[0] for item in TRAINING_DATA]
     categories = [item[1] for item in TRAINING_DATA]
-    
+
     vectorizer = TfidfVectorizer(lowercase=True, stop_words='english')
     X_train = vectorizer.fit_transform(texts)
-    
+
     classifier = MultinomialNB()
     classifier.fit(X_train, categories)
     print("Categorization Machine Learning model successfully trained.")
 
-    # Initialize task scheduler system loop
     scheduler = BackgroundScheduler()
     scheduler.add_job(automated_monthly_report_job, trigger='cron', day='last', hour=23, minute=59)
     scheduler.start()
     print("APScheduler framework attached. Cron loop armed.")
+
+@app.api_route("/", methods=["GET", "HEAD"])
+def health_check():
+    return JSONResponse({"status": "ok", "service": "FinTrace API"})
+
+@app.get("/api/download-report")
+async def download_report(user_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT to_char(date_trunc('month', r.created_at), 'YYYY-MM') AS month,
+                   COALESCE(elem->>'category', 'Other') AS category,
+                   SUM((elem->>'price')::numeric) AS total
+            FROM receipts r
+            JOIN receipt_shares rs ON r.id = rs.receipt_id,
+            jsonb_array_elements(r.parsed_items) AS elem
+            WHERE rs.user_id = %s
+            GROUP BY month, category
+            ORDER BY month;
+        """, (user_id,))
+        rows = cur.fetchall()
+
+        cur.execute("SELECT display_name, email FROM users_directory WHERE clerk_id = %s;", (user_id,))
+        user_row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        display_name = user_row[0] if user_row else "User"
+
+        monthly_map = {}
+        category_totals = {}
+        overall_total = 0.0
+
+        for month, cat, total in rows:
+            val = float(total)
+            overall_total += val
+            category_totals[cat] = category_totals.get(cat, 0.0) + val
+            monthly_map.setdefault(month, {"month": month, "total": 0.0})
+            monthly_map[month]["total"] += val
+
+        monthly_list = sorted(monthly_map.values(), key=lambda x: x["month"])
+        month_count = max(len(monthly_list), 1)
+        avg_monthly = overall_total / month_count
+        anomalies = detect_spending_anomalies(monthly_list)
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                rightMargin=20*mm, leftMargin=20*mm,
+                                topMargin=20*mm, bottomMargin=20*mm)
+
+        elements = []
+
+        title_style = ParagraphStyle('title', fontSize=24, fontName='Helvetica-Bold',
+                                     textColor=colors.HexColor('#3b82f6'), spaceAfter=4)
+        sub_style   = ParagraphStyle('sub',   fontSize=11, fontName='Helvetica',
+                                     textColor=colors.HexColor('#64748b'), spaceAfter=16)
+        label_style = ParagraphStyle('label', fontSize=9,  fontName='Helvetica-Bold',
+                                     textColor=colors.HexColor('#94a3b8'), spaceBefore=16, spaceAfter=4)
+
+        elements.append(Paragraph("FinTrace", title_style))
+        elements.append(Paragraph(f"Financial Fingerprint Report — {display_name}", sub_style))
+        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1e293b')))
+        elements.append(Spacer(1, 12))
+
+        if anomalies:
+            alert_data = [[
+                Paragraph(
+                    f"Spending spike in {anomalies[0]['month']}: ${anomalies[0]['total']:.2f} "
+                    f"(expected ~${anomalies[0]['expected_total']:.2f})",
+                    ParagraphStyle('alert', fontSize=10, fontName='Helvetica-Bold',
+                                   textColor=colors.HexColor('#fca5a5'))
+                )
+            ]]
+            alert_table = Table(alert_data, colWidths=[170*mm])
+            alert_table.setStyle(TableStyle([
+                ('BACKGROUND',    (0,0), (-1,-1), colors.HexColor('#2d1515')),
+                ('TOPPADDING',    (0,0), (-1,-1), 10),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+                ('LEFTPADDING',   (0,0), (-1,-1), 12),
+            ]))
+            elements.append(alert_table)
+            elements.append(Spacer(1, 12))
+
+        elements.append(Paragraph("SUMMARY", label_style))
+        stat_data = [
+            ['Total Spent', 'Monthly Average', 'Months Tracked'],
+            [f'${overall_total:.2f}', f'${avg_monthly:.2f}', str(month_count)],
+        ]
+        stat_table = Table(stat_data, colWidths=[56*mm, 56*mm, 56*mm])
+        stat_table.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
+            ('BACKGROUND',    (0,1), (-1,1),  colors.HexColor('#1e293b')),
+            ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
+            ('TEXTCOLOR',     (0,1), (-1,1),  colors.HexColor('#f1f5f9')),
+            ('FONTNAME',      (0,0), (-1,0),  'Helvetica'),
+            ('FONTNAME',      (0,1), (-1,1),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0), (-1,0),  9),
+            ('FONTSIZE',      (0,1), (-1,1),  14),
+            ('ALIGN',         (0,0), (-1,-1), 'CENTER'),
+            ('TOPPADDING',    (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+            ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#334155')),
+        ]))
+        elements.append(stat_table)
+        elements.append(Spacer(1, 16))
+
+        elements.append(Paragraph("SPENDING BY CATEGORY", label_style))
+        cat_data = [['Category', 'Amount', '% of Total']]
+        for cat, val in sorted(category_totals.items(), key=lambda x: -x[1]):
+            pct = (val / overall_total * 100) if overall_total > 0 else 0
+            cat_data.append([cat, f'${val:.2f}', f'{pct:.1f}%'])
+
+        cat_table = Table(cat_data, colWidths=[90*mm, 40*mm, 40*mm])
+        cat_table.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
+            ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
+            ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0), (-1,-1), 10),
+            ('TEXTCOLOR',     (0,1), (-1,-1), colors.HexColor('#cbd5e1')),
+            ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
+            ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.HexColor('#111827'), colors.HexColor('#0f172a')]),
+            ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#1e293b')),
+            ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
+            ('TOPPADDING',    (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('LEFTPADDING',   (0,0), (-1,-1), 10),
+            ('RIGHTPADDING',  (0,0), (-1,-1), 10),
+        ]))
+        elements.append(cat_table)
+        elements.append(Spacer(1, 16))
+
+        if monthly_list:
+            elements.append(Paragraph("MONTHLY BREAKDOWN", label_style))
+            month_data = [['Month', 'Total Spent']]
+            for m in monthly_list:
+                month_data.append([m['month'], f"${m['total']:.2f}"])
+
+            month_table = Table(month_data, colWidths=[85*mm, 85*mm])
+            month_table.setStyle(TableStyle([
+                ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
+                ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
+                ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
+                ('FONTSIZE',      (0,0), (-1,-1), 10),
+                ('TEXTCOLOR',     (0,1), (-1,-1), colors.HexColor('#cbd5e1')),
+                ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
+                ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.HexColor('#111827'), colors.HexColor('#0f172a')]),
+                ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#1e293b')),
+                ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
+                ('TOPPADDING',    (0,0), (-1,-1), 8),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ('LEFTPADDING',   (0,0), (-1,-1), 10),
+                ('RIGHTPADDING',  (0,0), (-1,-1), 10),
+            ]))
+            elements.append(month_table)
+
+        elements.append(Spacer(1, 24))
+        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1e293b')))
+        elements.append(Paragraph(
+            "Generated by FinTrace · NUS Orbital 2026",
+            ParagraphStyle('footer', fontSize=8, textColor=colors.HexColor('#475569'),
+                           fontName='Helvetica', spaceBefore=8, alignment=1)
+        ))
+
+        doc.build(elements)
+        buffer.seek(0)
+
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=fintrace-report.pdf"}
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/update-preference")
 async def update_preference(payload: PreferenceRequest):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE users_directory SET email_reports_enabled = %s WHERE clerk_id = %s;", (payload.email_reports_enabled, payload.user_id))
+        cur.execute("UPDATE users_directory SET email_reports_enabled = %s WHERE clerk_id = %s;",
+                    (payload.email_reports_enabled, payload.user_id))
         conn.commit()
         cur.close()
         conn.close()
         return {"success": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/request-report")
-async def request_report(payload: ReportRequest):
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT email FROM users_directory WHERE clerk_id = %s;", (payload.user_id,))
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-
-        if not row:
-            raise HTTPException(status_code=404, detail="User account signature entry missing.")
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(
-            _executor,
-            compile_and_send_report_for_user,
-            payload.user_id,
-            row[0]
-        )
-
-        return {"success": True}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -393,7 +396,6 @@ async def search_friend(email: str):
         conn = get_db()
         cur = conn.cursor()
         clean_email = email.strip().lower()
-        
         cur.execute(
             "SELECT display_name, clerk_id, email FROM users_directory WHERE LOWER(email) = %s;",
             (clean_email,)
@@ -420,7 +422,8 @@ async def split_receipt(request: Request):
         if not participants:
             raise HTTPException(status_code=400, detail="Participants array required.")
 
-        breakdown = {p["clerk_id"]: {"subtotal": 0.0, "adjustment_share": 0.0, "total": 0.0, "display_name": p["display_name"]} for p in participants}
+        breakdown = {p["clerk_id"]: {"subtotal": 0.0, "adjustment_share": 0.0, "total": 0.0,
+                                      "display_name": p["display_name"]} for p in participants}
         total_item_cost = 0.0
 
         for item in items:
@@ -441,7 +444,7 @@ async def split_receipt(request: Request):
                 ledger["adjustment_share"] = adjustment * (ledger["subtotal"] / total_item_cost)
             else:
                 ledger["adjustment_share"] = adjustment / len(participants)
-                
+
             ledger["total"] = round(ledger["subtotal"] + ledger["adjustment_share"], 2)
             ledger["subtotal"] = round(ledger["subtotal"], 2)
             ledger["adjustment_share"] = round(ledger["adjustment_share"], 2)
@@ -464,7 +467,7 @@ async def save_receipt(request: Request):
 
         conn = get_db()
         cur = conn.cursor()
-        
+
         cur.execute(
             "INSERT INTO receipts (user_id, raw_text, parsed_items) VALUES (%s, %s, %s) RETURNING id;",
             (user_id, raw_text, json.dumps(parsed_items))
@@ -516,8 +519,9 @@ async def get_receipts(user_id: str):
         receipts = []
         for row in rows:
             receipts.append({
-                "id": row[0], "raw_text": row[1], "parsed_items": row[2] or [], "created_at": str(row[3]),
-                "amount_owed": float(row[4]), "is_owner": row[5], "uploaded_by_name": row[6]
+                "id": row[0], "raw_text": row[1], "parsed_items": row[2] or [],
+                "created_at": str(row[3]), "amount_owed": float(row[4]),
+                "is_owner": row[5], "uploaded_by_name": row[6]
             })
         return {"receipts": receipts}
     except Exception as e:
@@ -549,7 +553,7 @@ async def get_spending_summary(user_id: str, months: int = 6):
         categories_set = set()
         for month, category, total in rows:
             categories_set.add(category)
-            monthly.setdefault(month, { 'total': 0.0, 'by_category': {} })
+            monthly.setdefault(month, {'total': 0.0, 'by_category': {}})
             monthly[month]['by_category'][category] = float(total)
             monthly[month]['total'] += float(total)
 
@@ -573,7 +577,7 @@ async def get_spending_summary(user_id: str, months: int = 6):
             """, (user_id,)
         )
         cat_rows = cur.fetchall()
-        by_category = { row[0]: float(row[1]) for row in cat_rows }
+        by_category = {row[0]: float(row[1]) for row in cat_rows}
 
         cur.close()
         conn.close()
@@ -581,7 +585,8 @@ async def get_spending_summary(user_id: str, months: int = 6):
         anomalies = detect_spending_anomalies(monthly_list)
 
         return {
-            'totals': { 'overall': round(overall_total, 2), 'by_category': {k: round(v, 2) for k, v in by_category.items()} },
+            'totals': {'overall': round(overall_total, 2),
+                       'by_category': {k: round(v, 2) for k, v in by_category.items()}},
             'monthly': monthly_list,
             'categories': sorted(list(categories_set)) or VALID_CATEGORIES,
             'anomalies': anomalies
@@ -593,7 +598,8 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
     image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     filtered = cv2.bilateralFilter(gray, 9, 75, 75)
-    thresh = cv2.adaptiveThreshold(filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 8)
+    thresh = cv2.adaptiveThreshold(filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY, 15, 8)
     kernel = np.ones((2, 2), np.uint8)
     return cv2.dilate(thresh, kernel, iterations=1)
 
@@ -601,7 +607,10 @@ def classify_item_name(name: str) -> str:
     global vectorizer, classifier
     if not vectorizer or not classifier: return "Other"
     cleaned_name = name.lower().strip()
-    merchant_rules = {"mcdonalds": "Food & Beverage", "starbucks": "Food & Beverage", "fairprice": "Groceries", "grab": "Transport"}
+    merchant_rules = {
+        "mcdonalds": "Food & Beverage", "starbucks": "Food & Beverage",
+        "fairprice": "Groceries", "grab": "Transport"
+    }
     for m, cat in merchant_rules.items():
         if m in cleaned_name: return cat
     if not any(w in vectorizer.vocabulary_ for w in cleaned_name.split()): return "LLM_FALLBACK"
@@ -614,27 +623,33 @@ def resolve_llm_fallback(items: list) -> list:
     if not api_key: return ["Other"] * len(items)
     try:
         client = genai.Client(api_key=api_key)
-        prompt = f"Categorize into: {', '.join(VALID_CATEGORIES)}\nItems:\n" + "\n".join(items) + "\nReturn JSON object: {{'categories': [str]}}"
-        res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0))
+        prompt = (f"Categorize into: {', '.join(VALID_CATEGORIES)}\nItems:\n" +
+                  "\n".join(items) + "\nReturn JSON object: {'categories': [str]}")
+        res = client.models.generate_content(
+            model='gemini-2.5-flash', contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0)
+        )
         return json.loads(res.text).get("categories", ["Other"] * len(items))
-    except: return ["Other"] * len(items)
+    except:
+        return ["Other"] * len(items)
 
 def parse_receipt_items(raw_text: str) -> list:
     lines = raw_text.split('\n')
     items = []
     fallback_queue = []
     price_pattern = re.compile(r'\$?\d+[.,]\d{1,2}(?:\s*)$')
- 
     skip_keywords = ['total', 'tax', 'gst', 'cash', 'visa', 'subtotal', 'change', 'nets', 'received', 'due']
-    
+
     for line in lines:
         line = line.strip()
         if not line or any(k in line.lower() for k in skip_keywords): continue
         cleaned = re.sub(r'^\d+[.,]\s*', '', line).strip()
         match = price_pattern.search(cleaned)
         if not match: continue
-        try: price = float(match.group().strip().replace('$', '').replace(',', '.'))
-        except: continue
+        try:
+            price = float(match.group().strip().replace('$', '').replace(',', '.'))
+        except:
+            continue
         if price == 0.0: continue
         name = re.sub(r'[\.\-\s]+$', '', cleaned[:match.start()]).strip()
         if not name: continue
@@ -653,7 +668,8 @@ def parse_receipt_items(raw_text: str) -> list:
 
 @app.post("/api/upload")
 async def upload_receipt(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"): raise HTTPException(status_code=400, detail="Invalid image file.")
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid image file.")
     try:
         img = cv2.imdecode(np.frombuffer(await file.read(), np.uint8), cv2.IMREAD_COLOR)
         if img is None: raise HTTPException(status_code=400, detail="Decode error.")
@@ -670,7 +686,3 @@ async def parse_receipt(request: Request):
     raw_text = body.get("raw_text")
     if not raw_text: raise HTTPException(status_code=400, detail="raw_text required.")
     return {"items": parse_receipt_items(raw_text)}
-
-@app.api_route("/", methods=["GET", "HEAD"])
-def health_check():
-    return JSONResponse({"status": "ok", "service": "FinTrace API"})

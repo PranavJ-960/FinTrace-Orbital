@@ -35,12 +35,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: '#1e293b',
-      border: '1px solid #334155',
-      borderRadius: 10,
-      padding: '10px 14px',
-      fontSize: 13,
-      color: '#f1f5f9',
+      background: '#1e293b', border: '1px solid #334155', borderRadius: 10,
+      padding: '10px 14px', fontSize: 13, color: '#f1f5f9',
       boxShadow: '0 4px 24px rgba(0,0,0,0.3)'
     }}>
       <div style={{ fontWeight: 700, marginBottom: 6, color: '#94a3b8' }}>{label}</div>
@@ -54,7 +50,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// Pull the global build-time environment variable safely
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function SpendingDashboard({ userId, months = 6 }: { userId: string; months?: number }) {
@@ -62,9 +57,8 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'breakdown'>('overview');
-  
-  const [dispatchingReport, setDispatchingReport] = useState(false);
-  const [dispatchStatus, setDispatchStatus] = useState<string | null>(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -83,24 +77,32 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
       .finally(() => setLoading(false));
   }, [userId, months]);
 
-  const handleTriggerReportRequest = async () => {
-    setDispatchingReport(true);
-    setDispatchStatus("Compiling data fields...");
+  const handleDownloadReport = async () => {
+    setDownloadingReport(true);
+    setDownloadStatus("Generating PDF...");
     try {
-      const response = await fetch(`${API_URL}/api/request-report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId })
-      });
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.detail || "Server pipeline error");
-      setDispatchStatus("📬 Report sent successfully!");
-      setTimeout(() => setDispatchStatus(null), 4000);
+      const response = await fetch(
+        `${API_URL}/api/download-report?user_id=${encodeURIComponent(userId)}`
+      );
+      if (!response.ok) throw new Error("Failed to generate report");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fintrace-report.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      setDownloadStatus("✅ Downloaded!");
+      setTimeout(() => setDownloadStatus(null), 3000);
     } catch (err: any) {
-      setDispatchStatus(`❌ Error: ${err.message}`);
-      setTimeout(() => setDispatchStatus(null), 4000);
+      setDownloadStatus(`❌ ${err.message}`);
+      setTimeout(() => setDownloadStatus(null), 4000);
     } finally {
-      setDispatchingReport(false);
+      setDownloadingReport(false);
     }
   };
 
@@ -164,37 +166,51 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
 
   return (
     <div style={styles.container}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, background: '#0f172a', border: '1px solid #1e293b', padding: 16, borderRadius: 12 }}>
+
+      {/* Report Download Card */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 20, background: '#0f172a', border: '1px solid #1e293b',
+        padding: 16, borderRadius: 12
+      }}>
         <div>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px 0' }}>Financial Fingerprint</h3>
-          <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Request a comprehensive insights statement directly via email.</p>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px 0' }}>
+            Financial Fingerprint
+          </h3>
+          <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>
+            Download a full PDF breakdown of your spending history.
+          </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <button 
-            onClick={handleTriggerReportRequest}
-            disabled={dispatchingReport}
+          <button
+            onClick={handleDownloadReport}
+            disabled={downloadingReport}
             style={{
-              background: dispatchingReport ? '#1e3a5f' : '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 16px',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: dispatchingReport ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.2s'
+              background: downloadingReport ? '#1e3a5f' : '#2563eb',
+              color: '#ffffff', border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontSize: 12, fontWeight: 600,
+              cursor: downloadingReport ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s'
             }}
           >
-            {dispatchingReport && <span style={{ ...styles.spinner, width: 12, height: 12, margin: 0, border: '2px solid #1e293b', borderTop: '2px solid #fff' }} />}
-            {dispatchingReport ? 'Generating...' : '⚡ Email Report'}
+            {downloadingReport && (
+              <span style={{
+                width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid #fff', borderRadius: '50%',
+                display: 'inline-block', animation: 'spin 0.7s linear infinite'
+              }} />
+            )}
+            {downloadingReport ? 'Generating...' : '⬇ Download Report'}
           </button>
-          {dispatchStatus && <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>{dispatchStatus}</span>}
+          {downloadStatus && (
+            <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>
+              {downloadStatus}
+            </span>
+          )}
         </div>
       </div>
 
+      {/* Anomaly Alert */}
       {data.anomalies && data.anomalies.length > 0 ? (
         <div style={styles.alertCard}>
           <div style={styles.alertTitle}>⚠️ Spending spike detected</div>
@@ -208,66 +224,56 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
       ) : (
         <div style={styles.infoCard}>
           <div style={styles.alertTitle}>📈 Spending trend looks steady</div>
-          <div style={{ color: '#cbd5e1', fontSize: 13 }}>No unusual monthly spikes were detected in the current window.</div>
+          <div style={{ color: '#cbd5e1', fontSize: 13 }}>
+            No unusual monthly spikes were detected in the current window.
+          </div>
         </div>
       )}
 
+      {/* Stat Cards */}
       <div style={styles.statsRow}>
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Total Spent</div>
           <div style={styles.statValue}>${data.totals.overall.toFixed(2)}</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>All time</div>
         </div>
-
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Avg / Month</div>
           <div style={styles.statValue}>${avgMonthly.toFixed(2)}</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Last {months} months</div>
         </div>
-
         <div style={styles.statCard}>
           <div style={styles.statLabel}>This Month</div>
-          <div style={styles.statValue}>
-            {lastMonth ? `$${lastMonth.total.toFixed(2)}` : '—'}
-          </div>
+          <div style={styles.statValue}>{lastMonth ? `$${lastMonth.total.toFixed(2)}` : '—'}</div>
           {monthDelta !== null && (
-            <div style={{
-              fontSize: 12,
-              marginTop: 4,
-              color: monthDelta > 0 ? '#ef4444' : '#22c55e',
-              fontWeight: 600
-            }}>
+            <div style={{ fontSize: 12, marginTop: 4, color: monthDelta > 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
               {monthDelta > 0 ? '▲' : '▼'} {Math.abs(monthDelta).toFixed(1)}% vs last month
             </div>
           )}
         </div>
-
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Top Category</div>
-          <div style={{ ...styles.statValue, fontSize: 16 }}>
-            {topCategories[0]?.name ?? '—'}
-          </div>
+          <div style={{ ...styles.statValue, fontSize: 16 }}>{topCategories[0]?.name ?? '—'}</div>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
             {topCategories[0] ? `$${topCategories[0].value.toFixed(2)}` : ''}
           </div>
         </div>
       </div>
 
+      {/* Tab Bar */}
       <div style={styles.tabBar}>
         {(['overview', 'categories', 'breakdown'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            style={{
-              ...styles.tab,
-              ...(activeTab === tab ? styles.tabActive : {})
-            }}
+            style={{ ...styles.tab, ...(activeTab === tab ? styles.tabActive : {}) }}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
 
+      {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Spending Trend</div>
@@ -284,13 +290,15 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
                 <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5} fill="url(#totalGrad)" dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5}
+                  fill="url(#totalGrad)" dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }} activeDot={{ r: 6 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
       )}
 
+      {/* Categories Tab */}
       {activeTab === 'categories' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Spending by Category</div>
@@ -298,20 +306,14 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
             <div style={{ height: 240, flex: '0 0 220px' }}>
               <ResponsiveContainer width={220} height={240}>
                 <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    dataKey="value"
-                    paddingAngle={3}
-                  >
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100}
+                    dataKey="value" paddingAngle={3}>
                     {pieData.map((entry, idx) => (
                       <Cell key={entry.name} fill={getColor(entry.name, idx)} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: any) => `$${Number(v).toFixed(2)}`} contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }} />
+                  <Tooltip formatter={(v: any) => `$${Number(v).toFixed(2)}`}
+                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -331,6 +333,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
+      {/* Breakdown Tab */}
       {activeTab === 'breakdown' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Breakdown by Category</div>
@@ -343,7 +346,8 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8', paddingTop: 12 }} />
                 {categories.map((c, idx) => (
-                  <Bar key={c} dataKey={c} stackId="a" fill={getColor(c, idx)} radius={idx === categories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  <Bar key={c} dataKey={c} stackId="a" fill={getColor(c, idx)}
+                    radius={idx === categories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
