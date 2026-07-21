@@ -250,6 +250,7 @@ async def download_report(user_id: str):
 
         # Header Section
         elements.append(Paragraph("FinTrace Insights", title_style))
+        elements.append(Spacer(1, 15))
         elements.append(Paragraph(f"Financial Fingerprint Statement — Generated {datetime.now().strftime('%b %d, %Y')}", sub_style))
         elements.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=14))
 
