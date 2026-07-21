@@ -81,4 +81,4 @@ urllib3==2.7.0
 uvicorn==0.50.2
 websockets==16.0
 httpx
-reportlab==4.2.5
+reportlab
