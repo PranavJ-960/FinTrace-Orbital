@@ -126,6 +126,9 @@ function App() {
 
   /* Live AI Feedback Journey States */
   const [scanStep, setScanStep] = useState<number>(0);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualEntryText, setManualEntryText] = useState('');
+  const [manualParsing, setManualParsing] = useState(false);
 
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -205,6 +208,36 @@ function App() {
       setSplitResult(null);
     } catch {
       setParsedItems([]);
+    }
+  };
+
+  const handleManualEntryParse = async () => {
+    const text = manualEntryText.trim();
+    if (!text) {
+      showToast('Please enter some receipt text first.');
+      return;
+    }
+
+    setManualParsing(true);
+    setLoading(true);
+    setReceipt(null);
+    setIsEditing(false);
+    setParsedItems([]);
+    setSplitResult(null);
+    setShowSplitPanel(false);
+    setShowManualEntry(false);
+
+    try {
+      setReceipt({ rawText: text });
+      setIsEditing(true);
+      await handleParse(text);
+      setManualEntryText('');
+      showToast('Receipt parsed');
+    } catch {
+      showToast("We couldn't parse that receipt text.");
+    } finally {
+      setManualParsing(false);
+      setLoading(false);
     }
   };
 
@@ -686,6 +719,45 @@ function App() {
                           {selectedFile ? selectedFile.name : 'Drag & drop or click to upload'}
                         </div>
                       </div>
+                    </div>
+
+                    <div className="workspace-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12, background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>Manual correction</div>
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Type or paste the receipt text and parse it.</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowManualEntry((prev) => !prev)}
+                          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: showManualEntry ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)', color: '#f8fafc', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          {showManualEntry ? 'Hide' : 'Open'}
+                        </button>
+                      </div>
+
+                      {showManualEntry && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <textarea
+                            rows={6}
+                            value={manualEntryText}
+                            onChange={(e) => setManualEntryText(e.target.value)}
+                            placeholder="Example: Coffee 4.50\nSandwich 7.20"
+                            style={{ width: '100%', padding: '12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: '#0b1329', color: '#f8fafc', resize: 'vertical', fontFamily: 'monospace', fontSize: 13, outline: 'none' }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={handleManualEntryParse}
+                              disabled={manualParsing || !manualEntryText.trim()}
+                              className="action-primary"
+                              style={{ padding: '10px 14px', fontSize: 13.5, opacity: manualParsing || !manualEntryText.trim() ? 0.7 : 1 }}
+                            >
+                              {manualParsing ? 'Parsing…' : 'Parse Receipt'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Contextual Active AI Reading Timeline feedback */}
