@@ -194,13 +194,8 @@ async def download_report(user_id: str):
             ORDER BY month;
         """, (user_id,))
         rows = cur.fetchall()
-
-        cur.execute("SELECT display_name, email FROM users_directory WHERE clerk_id = %s;", (user_id,))
-        user_row = cur.fetchone()
         cur.close()
         conn.close()
-
-        display_name = user_row[0] if user_row else "User"
 
         monthly_map = {}
         category_totals = {}
@@ -219,121 +214,142 @@ async def download_report(user_id: str):
         anomalies = detect_spending_anomalies(monthly_list)
 
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                rightMargin=20*mm, leftMargin=20*mm,
-                                topMargin=20*mm, bottomMargin=20*mm)
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4,
+            rightMargin=18*mm, 
+            leftMargin=18*mm,
+            topMargin=18*mm, 
+            bottomMargin=18*mm
+        )
 
         elements = []
 
-        title_style = ParagraphStyle('title', fontSize=24, fontName='Helvetica-Bold',
-                                     textColor=colors.HexColor('#3b82f6'), spaceAfter=4)
-        sub_style   = ParagraphStyle('sub',   fontSize=11, fontName='Helvetica',
-                                     textColor=colors.HexColor('#64748b'), spaceAfter=16)
-        label_style = ParagraphStyle('label', fontSize=9,  fontName='Helvetica-Bold',
-                                     textColor=colors.HexColor('#94a3b8'), spaceBefore=16, spaceAfter=4)
+        # Color Palette
+        PRIMARY_BLUE = colors.HexColor('#3b82f6')
+        ACCENT_EMERALD = colors.HexColor('#10b981')
+        TEXT_LIGHT = colors.HexColor('#f8fafc')
+        TEXT_MUTED = colors.HexColor('#94a3b8')
+        BG_DARK = colors.HexColor('#0f172a')
+        CARD_BG = colors.HexColor('#1e293b')
+        ROW_ALT = colors.HexColor('#111827')
+        BORDER_COLOR = colors.HexColor('#334155')
 
-        elements.append(Paragraph("FinTrace", title_style))
-        elements.append(Paragraph(f"Financial Fingerprint Report — {display_name}", sub_style))
-        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1e293b')))
-        elements.append(Spacer(1, 12))
+        # Typography Styles
+        title_style = ParagraphStyle('DocTitle', fontSize=22, fontName='Helvetica-Bold', textColor=PRIMARY_BLUE, spaceAfter=2)
+        sub_style = ParagraphStyle('DocSub', fontSize=10, fontName='Helvetica', textColor=TEXT_MUTED, spaceAfter=14)
+        section_style = ParagraphStyle('DocSection', fontSize=10, fontName='Helvetica-Bold', textColor=TEXT_MUTED, spaceBefore=14, spaceAfter=8)
+        
+        stat_label_style = ParagraphStyle('StatLabel', fontSize=8, fontName='Helvetica-Bold', textColor=TEXT_MUTED, alignment=1)
+        stat_val_style = ParagraphStyle('StatVal', fontSize=15, fontName='Helvetica-Bold', textColor=TEXT_LIGHT, alignment=1)
 
+        cell_text_left = ParagraphStyle('CellLeft', fontSize=9, fontName='Helvetica', textColor=colors.HexColor('#cbd5e1'))
+        cell_text_bold = ParagraphStyle('CellBold', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_LIGHT)
+        cell_text_right = ParagraphStyle('CellRight', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_LIGHT, alignment=2)
+        cell_text_right_muted = ParagraphStyle('CellRightMuted', fontSize=9, fontName='Helvetica', textColor=TEXT_MUTED, alignment=2)
+
+        # Header Section
+        elements.append(Paragraph("FinTrace Insights", title_style))
+        elements.append(Paragraph(f"Financial Fingerprint Statement — Generated {datetime.now().strftime('%b %d, %Y')}", sub_style))
+        elements.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=14))
+
+        # Anomaly Alert Box
         if anomalies:
-            alert_data = [[
-                Paragraph(
-                    f"Spending spike in {anomalies[0]['month']}: ${anomalies[0]['total']:.2f} "
-                    f"(expected ~${anomalies[0]['expected_total']:.2f})",
-                    ParagraphStyle('alert', fontSize=10, fontName='Helvetica-Bold',
-                                   textColor=colors.HexColor('#fca5a5'))
-                )
-            ]]
-            alert_table = Table(alert_data, colWidths=[170*mm])
+            alert_text = Paragraph(
+                f"⚠️ <b>SPENDING SPIKE DETECTED:</b> In {anomalies[0]['month']}, total reached <b>${anomalies[0]['total']:.2f}</b> "
+                f"(expected ~${anomalies[0]['expected_total']:.2f}).",
+                ParagraphStyle('AlertMsg', fontSize=9.5, fontName='Helvetica', textColor=colors.HexColor('#fca5a5'))
+            )
+            alert_table = Table([[alert_text]], colWidths=[174*mm])
             alert_table.setStyle(TableStyle([
-                ('BACKGROUND',    (0,0), (-1,-1), colors.HexColor('#2d1515')),
-                ('TOPPADDING',    (0,0), (-1,-1), 10),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-                ('LEFTPADDING',   (0,0), (-1,-1), 12),
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#3f1313')),
+                ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#ef4444')),
+                ('TOPPADDING', (0,0), (-1,-1), 8),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ('LEFTPADDING', (0,0), (-1,-1), 12),
+                ('RIGHTPADDING', (0,0), (-1,-1), 12),
             ]))
             elements.append(alert_table)
-            elements.append(Spacer(1, 12))
+            elements.append(Spacer(1, 10))
 
-        elements.append(Paragraph("SUMMARY", label_style))
+        # Overview Stats Cards
+        elements.append(Paragraph("EXECUTIVE OVERVIEW", section_style))
         stat_data = [
-            ['Total Spent', 'Monthly Average', 'Months Tracked'],
-            [f'${overall_total:.2f}', f'${avg_monthly:.2f}', str(month_count)],
+            [Paragraph('TOTAL VOLUME', stat_label_style), Paragraph('MONTHLY AVERAGE', stat_label_style), Paragraph('ACTIVE WINDOWS', stat_label_style)],
+            [Paragraph(f'${overall_total:.2f}', stat_val_style), Paragraph(f'${avg_monthly:.2f}', stat_val_style), Paragraph(f'{month_count} Mos', stat_val_style)],
         ]
-        stat_table = Table(stat_data, colWidths=[56*mm, 56*mm, 56*mm])
+        stat_table = Table(stat_data, colWidths=[58*mm, 58*mm, 58*mm])
         stat_table.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
-            ('BACKGROUND',    (0,1), (-1,1),  colors.HexColor('#1e293b')),
-            ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
-            ('TEXTCOLOR',     (0,1), (-1,1),  colors.HexColor('#f1f5f9')),
-            ('FONTNAME',      (0,0), (-1,0),  'Helvetica'),
-            ('FONTNAME',      (0,1), (-1,1),  'Helvetica-Bold'),
-            ('FONTSIZE',      (0,0), (-1,0),  9),
-            ('FONTSIZE',      (0,1), (-1,1),  14),
-            ('ALIGN',         (0,0), (-1,-1), 'CENTER'),
-            ('TOPPADDING',    (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-            ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#334155')),
+            ('BACKGROUND', (0,0), (-1,0), BG_DARK),
+            ('BACKGROUND', (0,1), (-1,1), CARD_BG),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('GRID', (0,0), (-1,-1), 0.5, BORDER_COLOR),
         ]))
         elements.append(stat_table)
-        elements.append(Spacer(1, 16))
+        elements.append(Spacer(1, 12))
 
-        elements.append(Paragraph("SPENDING BY CATEGORY", label_style))
-        cat_data = [['Category', 'Amount', '% of Total']]
-        for cat, val in sorted(category_totals.items(), key=lambda x: -x[1]):
+        # Category Breakdown Table
+        elements.append(Paragraph("SPENDING DISTRIBUTION BY CATEGORY", section_style))
+        cat_data = [[
+            Paragraph('Category', cell_text_bold), 
+            Paragraph('Amount ($)', ParagraphStyle('THRight', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_MUTED, alignment=2)), 
+            Paragraph('Share (%)', ParagraphStyle('THRight2', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_MUTED, alignment=2))
+        ]]
+
+        sorted_categories = sorted(category_totals.items(), key=lambda x: -x[1])
+        for cat, val in sorted_categories:
             pct = (val / overall_total * 100) if overall_total > 0 else 0
-            cat_data.append([cat, f'${val:.2f}', f'{pct:.1f}%'])
+            cat_data.append([
+                Paragraph(cat, cell_text_left),
+                Paragraph(f"${val:.2f}", cell_text_right),
+                Paragraph(f"{pct:.1f}%", cell_text_right_muted)
+            ])
 
-        cat_table = Table(cat_data, colWidths=[90*mm, 40*mm, 40*mm])
+        cat_table = Table(cat_data, colWidths=[94*mm, 40*mm, 40*mm])
         cat_table.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
-            ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
-            ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
-            ('FONTSIZE',      (0,0), (-1,-1), 10),
-            ('TEXTCOLOR',     (0,1), (-1,-1), colors.HexColor('#cbd5e1')),
-            ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
-            ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.HexColor('#111827'), colors.HexColor('#0f172a')]),
-            ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#1e293b')),
-            ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
-            ('TOPPADDING',    (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('LEFTPADDING',   (0,0), (-1,-1), 10),
-            ('RIGHTPADDING',  (0,0), (-1,-1), 10),
+            ('BACKGROUND', (0,0), (-1,0), BG_DARK),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [CARD_BG, ROW_ALT]),
+            ('GRID', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
         ]))
         elements.append(cat_table)
-        elements.append(Spacer(1, 16))
+        elements.append(Spacer(1, 12))
 
+        # Monthly Breakdown Table
         if monthly_list:
-            elements.append(Paragraph("MONTHLY BREAKDOWN", label_style))
-            month_data = [['Month', 'Total Spent']]
+            elements.append(Paragraph("HISTORICAL MONTHLY SUMMARY", section_style))
+            month_data = [[
+                Paragraph('Month', cell_text_bold), 
+                Paragraph('Total Spent ($)', ParagraphStyle('THRight3', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_MUTED, alignment=2))
+            ]]
             for m in monthly_list:
-                month_data.append([m['month'], f"${m['total']:.2f}"])
+                month_data.append([
+                    Paragraph(m['month'], cell_text_left),
+                    Paragraph(f"${m['total']:.2f}", cell_text_right)
+                ])
 
-            month_table = Table(month_data, colWidths=[85*mm, 85*mm])
+            month_table = Table(month_data, colWidths=[87*mm, 87*mm])
             month_table.setStyle(TableStyle([
-                ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#0f172a')),
-                ('TEXTCOLOR',     (0,0), (-1,0),  colors.HexColor('#64748b')),
-                ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
-                ('FONTSIZE',      (0,0), (-1,-1), 10),
-                ('TEXTCOLOR',     (0,1), (-1,-1), colors.HexColor('#cbd5e1')),
-                ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
-                ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.HexColor('#111827'), colors.HexColor('#0f172a')]),
-                ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#1e293b')),
-                ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
-                ('TOPPADDING',    (0,0), (-1,-1), 8),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                ('LEFTPADDING',   (0,0), (-1,-1), 10),
-                ('RIGHTPADDING',  (0,0), (-1,-1), 10),
+                ('BACKGROUND', (0,0), (-1,0), BG_DARK),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [CARD_BG, ROW_ALT]),
+                ('GRID', (0,0), (-1,-1), 0.5, BORDER_COLOR),
+                ('TOPPADDING', (0,0), (-1,-1), 6),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                ('LEFTPADDING', (0,0), (-1,-1), 10),
+                ('RIGHTPADDING', (0,0), (-1,-1), 10),
             ]))
             elements.append(month_table)
 
-        elements.append(Spacer(1, 24))
-        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1e293b')))
+        # Footer
+        elements.append(Spacer(1, 20))
+        elements.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=8))
         elements.append(Paragraph(
-            "Generated by FinTrace · NUS Orbital 2026",
-            ParagraphStyle('footer', fontSize=8, textColor=colors.HexColor('#475569'),
-                           fontName='Helvetica', spaceBefore=8, alignment=1)
+            "FinTrace Intelligence Engine · NUS Orbital 2026 Platform Instance",
+            ParagraphStyle('DocFooter', fontSize=8, textColor=TEXT_MUTED, fontName='Helvetica', alignment=1)
         ))
 
         doc.build(elements)
@@ -342,7 +358,7 @@ async def download_report(user_id: str):
         return StreamingResponse(
             buffer,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=fintrace-report.pdf"}
+            headers={"Content-Disposition": "attachment; filename=fintrace-financial-report.pdf"}
         )
 
     except Exception as e:
