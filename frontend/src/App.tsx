@@ -115,6 +115,11 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [toast, setToast]               = useState<string | null>(null);
 
+  const [selectionMode, setSelectionMode]     = useState(false);
+  const [selectedReceipts, setSelectedReceipts] = useState<number[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleting, setDeleting]               = useState(false);
+
   /* Receipt Splitting Core States */
   const [showSplitPanel, setShowSplitPanel] = useState(false);
   const [friendsList, setFriendsList]       = useState<Participant[]>([]);
@@ -385,6 +390,46 @@ function App() {
       setHistoryLoading(false);
     }
   };
+
+  const toggleReceiptSelection = (id: number) => {
+  setSelectedReceipts(prev =>
+    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  );
+};
+
+const toggleSelectAll = () => {
+  const ownedIds = history.filter(r => r.is_owner).map(r => r.id);
+  setSelectedReceipts(prev =>
+    prev.length === ownedIds.length ? [] : ownedIds
+  );
+};
+
+const exitSelectionMode = () => {
+  setSelectionMode(false);
+  setSelectedReceipts([]);
+};
+
+const handleDeleteSelected = async () => {
+  if (!user || selectedReceipts.length === 0) return;
+  setDeleting(true);
+  try {
+    const res = await fetch(`${API_URL}/api/receipts`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, receipt_ids: selectedReceipts }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    showToast(`✓ Deleted ${data.deleted_count} receipt${data.deleted_count === 1 ? '' : 's'}`);
+    setShowDeleteModal(false);
+    exitSelectionMode();
+    fetchHistory();
+  } catch {
+    showToast("Couldn't delete those receipts.");
+  } finally {
+    setDeleting(false);
+  }
+};
 
   const handleNavClick = (id: View) => {
     setView(id);
@@ -932,10 +977,34 @@ function App() {
             {/* ── HISTORY VIEW ── */}
             {view === 'history' && (
               <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ marginBottom: 8 }}>
-                  <h2 style={{ fontSize: 22, fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.03em' }}>Receipt History</h2>
-                  <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>Every receipt you've scanned or been added to.</p>
+                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h2 style={{ fontSize: 22, fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.03em' }}>Receipt History</h2>
+                    <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>Every receipt you've scanned or been added to.</p>
+                  </div>
+                  {history.length > 0 && (
+                    selectionMode ? (
+                      <button className="action-secondary" onClick={exitSelectionMode} style={{ padding: '8px 14px', fontSize: 13 }}>
+                        Cancel
+                      </button>
+                    ) : (
+                      <button className="action-secondary" onClick={() => setSelectionMode(true)} style={{ padding: '8px 14px', fontSize: 13 }}>
+                        Delete Receipts
+                      </button>
+                    )
+                  )}
                 </div>
+
+                {selectionMode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: -4 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedReceipts.length > 0 && selectedReceipts.length === history.filter(r => r.is_owner).length}
+                      onChange={toggleSelectAll}
+                    />
+                    <span style={{ fontSize: 13, color: '#94a3b8' }}>Select all</span>
+                  </div>
+                )}
 
                 {historyLoading && (
                   <div style={{ padding: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
@@ -951,36 +1020,113 @@ function App() {
                 )}
 
                 {history.map((r) => (
-                  <div key={r.id} className="workspace-card" style={{ overflow: 'hidden', borderLeft: r.is_owner ? '1px solid rgba(255,255,255,0.05)' : '3px solid #10b981' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ background: r.is_owner ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', color: r.is_owner ? '#94a3b8' : '#34d399', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>
-                          {r.is_owner ? 'Yours' : `Shared by ${r.uploaded_by_name}`}
-                        </span>
-                        <span style={{ color: '#64748b', fontSize: 13 }}>
-                          {new Date(r.created_at).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'stretch', gap: 10 }}>
+                    {selectionMode && (
+                      <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                        <input
+                          type="checkbox"
+                          disabled={!r.is_owner}
+                          checked={selectedReceipts.includes(r.id)}
+                          onChange={() => toggleReceiptSelection(r.id)}
+                          style={{ width: 16, height: 16, opacity: r.is_owner ? 1 : 0.3, cursor: r.is_owner ? 'pointer' : 'not-allowed' }}
+                        />
                       </div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', fontFamily: 'monospace' }}>Total: ${r.amount_owed?.toFixed(2)}</span>
+                    )}
+                    <div className="workspace-card" style={{ flex: 1, overflow: 'hidden', borderLeft: r.is_owner ? '1px solid rgba(255,255,255,0.05)' : '3px solid #10b981' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ background: r.is_owner ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', color: r.is_owner ? '#94a3b8' : '#34d399', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>
+                            {r.is_owner ? 'Yours' : `Shared by ${r.uploaded_by_name}`}
+                          </span>
+                          <span style={{ color: '#64748b', fontSize: 13 }}>
+                            {new Date(r.created_at).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', fontFamily: 'monospace' }}>Total: ${r.amount_owed?.toFixed(2)}</span>
+                      </div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <tbody>
+                          {r.parsed_items.map((item, idx) => {
+                            const cs = getCategoryStyle(item.category);
+                            return (
+                              <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.01)' }}>
+                                <td style={{ padding: '11px 20px', fontSize: 13, color: '#cbd5e1' }}>
+                                  <span style={{ marginRight: 8 }}>{cs.icon}</span>
+                                  {item.name}
+                                </td>
+                                <td style={{ padding: '11px 20px', textAlign: 'right', fontSize: 13, color: '#94a3b8', fontFamily: 'monospace' }}>${item.price.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                      <tbody>
-                        {r.parsed_items.map((item, idx) => {
-                          const cs = getCategoryStyle(item.category);
-                          return (
-                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.01)' }}>
-                              <td style={{ padding: '11px 20px', fontSize: 13, color: '#cbd5e1' }}>
-                                <span style={{ marginRight: 8 }}>{cs.icon}</span>
-                                {item.name}
-                              </td>
-                              <td style={{ padding: '11px 20px', textAlign: 'right', fontSize: 13, color: '#94a3b8', fontFamily: 'monospace' }}>${item.price.toFixed(2)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
                   </div>
                 ))}
+                {selectionMode && (
+                  <div style={{
+                    position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+                    zIndex: 999, background: '#111827', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 14, padding: '12px 16px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+                    display: 'flex', alignItems: 'center', gap: 12
+                  }}>
+                    <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                      {selectedReceipts.length} selected
+                    </span>
+                    <button
+                      onClick={() => setShowDeleteModal(true)}
+                      disabled={selectedReceipts.length === 0}
+                      style={{
+                        padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600,
+                        background: selectedReceipts.length === 0 ? '#3f1313' : '#ef4444',
+                        color: '#fff', cursor: selectedReceipts.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: selectedReceipts.length === 0 ? 0.5 : 1
+                      }}
+                    >
+                      Delete {selectedReceipts.length} Receipt{selectedReceipts.length === 1 ? '' : 's'}
+                    </button>
+                  </div>
+                )}
+
+                {showDeleteModal && (
+                  <div style={{
+                    position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                  }}>
+                    <div style={{
+                      background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16,
+                      padding: 24, maxWidth: 360, width: '100%', textAlign: 'center'
+                    }}>
+                      <h3 style={{ fontSize: 17, fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
+                        Delete Receipts?
+                      </h3>
+                      <p style={{ fontSize: 13.5, color: '#94a3b8', lineHeight: 1.5, marginBottom: 20 }}>
+                        You're about to permanently delete {selectedReceipts.length} receipt{selectedReceipts.length === 1 ? '' : 's'}.
+                        This can't be undone.
+                      </p>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                          className="action-secondary"
+                          onClick={() => setShowDeleteModal(false)}
+                          style={{ flex: 1, padding: '10px', fontSize: 13.5 }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleDeleteSelected}
+                          disabled={deleting}
+                          style={{
+                            flex: 1, padding: '10px', fontSize: 13.5, fontWeight: 600, borderRadius: 12,
+                            border: 'none', background: '#ef4444', color: '#fff',
+                            cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.7 : 1
+                          }}
+                        >
+                          {deleting ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

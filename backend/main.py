@@ -543,6 +543,35 @@ async def get_receipts(user_id: str):
         return {"receipts": receipts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+class DeleteReceiptsRequest(BaseModel):
+    user_id: str
+    receipt_ids: list[int]
+
+@app.delete("/api/receipts")
+async def delete_receipts(payload: DeleteReceiptsRequest):
+    if not payload.receipt_ids:
+        raise HTTPException(status_code=400, detail="No receipt IDs provided.")
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Only delete receipts the user actually owns — prevents a shared
+        # recipient from deleting someone else's uploaded receipt.
+        cur.execute(
+            """
+            DELETE FROM receipts
+            WHERE user_id = %s AND id = ANY(%s)
+            RETURNING id;
+            """,
+            (payload.user_id, payload.receipt_ids)
+        )
+        deleted_ids = [row[0] for row in cur.fetchall()]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"success": True, "deleted_count": len(deleted_ids), "deleted_ids": deleted_ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/spending-summary")
 async def get_spending_summary(user_id: str, months: int = 6):
