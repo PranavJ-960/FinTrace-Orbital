@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { SignedIn, SignedOut, SignIn, UserButton, useUser } from '@clerk/clerk-react';
 import SpendingDashboard from './components/SpendingDashboard';
 
@@ -1063,7 +1064,7 @@ const handleDeleteSelected = async () => {
                     </div>
                   </div>
                 ))}
-                {selectionMode && (
+                {selectionMode && createPortal(
                   <div style={{
                     position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
                     zIndex: 999, background: '#111827', border: '1px solid rgba(255,255,255,0.1)',
@@ -1085,10 +1086,11 @@ const handleDeleteSelected = async () => {
                     >
                       Delete {selectedReceipts.length} Receipt{selectedReceipts.length === 1 ? '' : 's'}
                     </button>
-                  </div>
+                  </div>,
+                  document.body
                 )}
 
-                {showDeleteModal && (
+                {showDeleteModal && createPortal(
                   <div style={{
                     position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -1125,7 +1127,8 @@ const handleDeleteSelected = async () => {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             )}
