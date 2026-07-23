@@ -404,6 +404,8 @@ async def sync_user(request: Request):
         cur.close()
         conn.close()
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -425,6 +427,8 @@ async def search_friend(email: str):
             raise HTTPException(status_code=404, detail="Friend not found in system directory.")
 
         return {"success": True, "display_name": row[0], "clerk_id": row[1], "email": row[2]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -467,6 +471,8 @@ async def split_receipt(request: Request):
             ledger["adjustment_share"] = round(ledger["adjustment_share"], 2)
 
         return {"success": True, "grand_total": round(total_item_cost + adjustment, 2), "breakdown": breakdown}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
