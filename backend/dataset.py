@@ -1,12 +1,12 @@
-# backend/dataset.py
+                    
 
 TRAINING_DATA = [
-    # ============================================================
-    # FOOD & BEVERAGE
-    # Cooked meals, hawker food, cafes, restaurants, beverages
-    # ============================================================
+                                                                  
+                     
+                                                              
+                                                                  
 
-    # McDonald's
+                
     ("mcspicy meal", "Food & Beverage"),
     ("mcchicken meal", "Food & Beverage"),
     ("double cheeseburger", "Food & Beverage"),
@@ -19,7 +19,7 @@ TRAINING_DATA = [
     ("french fries large", "Food & Beverage"),
     ("apple pie mcdonalds", "Food & Beverage"),
 
-    # Drinks
+            
     ("coke medium", "Food & Beverage"),
     ("sprite large", "Food & Beverage"),
     ("iced lemon tea", "Food & Beverage"),
@@ -41,7 +41,7 @@ TRAINING_DATA = [
     ("100plus", "Food & Beverage"),
     ("mineral water bottle", "Food & Beverage"),
 
-    # Ya Kun / Toast / Kaya
+                           
     ("yakun set a", "Food & Beverage"),
     ("yakun set b", "Food & Beverage"),
     ("toast set", "Food & Beverage"),
@@ -49,7 +49,7 @@ TRAINING_DATA = [
     ("french toast", "Food & Beverage"),
     ("soft boiled eggs", "Food & Beverage"),
 
-    # Indian / Malay food
+                         
     ("egg prata", "Food & Beverage"),
     ("plain prata", "Food & Beverage"),
     ("tissue prata", "Food & Beverage"),
@@ -70,7 +70,7 @@ TRAINING_DATA = [
     ("lontong", "Food & Beverage"),
     ("ketupat", "Food & Beverage"),
 
-    # Chinese hawker food
+                         
     ("chicken rice", "Food & Beverage"),
     ("hainanese chicken rice", "Food & Beverage"),
     ("roast chicken rice", "Food & Beverage"),
@@ -117,7 +117,7 @@ TRAINING_DATA = [
     ("yang chow fried rice", "Food & Beverage"),
     ("nasi goreng", "Food & Beverage"),
 
-    # Japanese
+              
     ("sushi platter", "Food & Beverage"),
     ("salmon sashimi", "Food & Beverage"),
     ("tuna sashimi", "Food & Beverage"),
@@ -135,7 +135,7 @@ TRAINING_DATA = [
     ("onigiri", "Food & Beverage"),
     ("japanese curry rice", "Food & Beverage"),
 
-    # Western / Cafes
+                     
     ("subway italian bmt", "Food & Beverage"),
     ("subway tuna sub", "Food & Beverage"),
     ("subway veggie delite", "Food & Beverage"),
@@ -156,7 +156,7 @@ TRAINING_DATA = [
     ("granola bowl", "Food & Beverage"),
     ("acai bowl", "Food & Beverage"),
 
-    # Coffee & Bubble Tea
+                         
     ("starbucks americano", "Food & Beverage"),
     ("starbucks caramel macchiato", "Food & Beverage"),
     ("starbucks frappuccino", "Food & Beverage"),
@@ -180,7 +180,7 @@ TRAINING_DATA = [
     ("matcha latte", "Food & Beverage"),
     ("cold brew", "Food & Beverage"),
 
-    # Merchant brand names (for merchant-level receipts)
+                                                        
     ("mcdonalds", "Food & Beverage"),
     ("burger king", "Food & Beverage"),
     ("subway", "Food & Beverage"),
@@ -210,13 +210,13 @@ TRAINING_DATA = [
     ("pizza hut", "Food & Beverage"),
     ("dominos pizza", "Food & Beverage"),
 
-    # ============================================================
-    # GROCERIES
-    # Raw ingredients, household consumables, supermarket items
-    # Key: use specific product names, NOT generic food words
-    # ============================================================
+                                                                  
+               
+                                                               
+                                                             
+                                                                  
 
-    # Dairy
+           
     ("farmhouse uht milk 1l", "Groceries"),
     ("marigold fresh milk", "Groceries"),
     ("magnolia fresh milk 2l", "Groceries"),
@@ -230,13 +230,13 @@ TRAINING_DATA = [
     ("condensed milk tin", "Groceries"),
     ("evaporated milk can", "Groceries"),
 
-    # Eggs
+          
     ("egg tray 30s", "Groceries"),
     ("brown eggs 10s", "Groceries"),
     ("free range eggs", "Groceries"),
     ("omega eggs", "Groceries"),
 
-    # Bread & Bakery
+                    
     ("gardenia white bread", "Groceries"),
     ("gardenia wholemeal loaf", "Groceries"),
     ("sunshine bread", "Groceries"),
@@ -244,7 +244,7 @@ TRAINING_DATA = [
     ("cream crackers", "Groceries"),
     ("jacob cream crackers", "Groceries"),
 
-    # Fresh Produce
+                   
     ("bananas bunch", "Groceries"),
     ("gala apples bag", "Groceries"),
     ("fuji apples", "Groceries"),
@@ -273,7 +273,7 @@ TRAINING_DATA = [
     ("enoki mushrooms", "Groceries"),
     ("shitake mushrooms", "Groceries"),
 
-    # Raw Meat & Seafood
+                        
     ("chicken breast pack", "Groceries"),
     ("chicken thigh boneless", "Groceries"),
     ("chicken drumstick", "Groceries"),
@@ -291,7 +291,7 @@ TRAINING_DATA = [
     ("canned sardines", "Groceries"),
     ("canned mackerel", "Groceries"),
 
-    # Pantry Staples
+                    
     ("jasmine rice 5kg", "Groceries"),
     ("basmati rice 2kg", "Groceries"),
     ("sunflower oil 2l", "Groceries"),
@@ -315,7 +315,7 @@ TRAINING_DATA = [
     ("flour plain 1kg", "Groceries"),
     ("corn flour", "Groceries"),
 
-    # Instant / Packaged Food
+                             
     ("maggi mee goreng", "Groceries"),
     ("indomie original", "Groceries"),
     ("nissin cup noodles", "Groceries"),
@@ -331,7 +331,7 @@ TRAINING_DATA = [
     ("pokka green tea 1.5l", "Groceries"),
     ("f&n orange drink", "Groceries"),
 
-    # Household Consumables
+                           
     ("kleenex facial tissue", "Groceries"),
     ("scott toilet tissue 12 rolls", "Groceries"),
     ("kitchen towel rolls", "Groceries"),
@@ -353,7 +353,7 @@ TRAINING_DATA = [
     ("wet wipes pack", "Groceries"),
     ("antibacterial wipes", "Groceries"),
 
-    # Supermarket names
+                       
     ("fairprice", "Groceries"),
     ("fairprice finest", "Groceries"),
     ("sheng siong", "Groceries"),
@@ -364,12 +364,12 @@ TRAINING_DATA = [
     ("prime supermarket", "Groceries"),
     ("little farms", "Groceries"),
 
-    # ============================================================
-    # TRANSPORT
-    # Ride-hailing, public transit, fuel, parking
-    # ============================================================
+                                                                  
+               
+                                                 
+                                                                  
 
-    # Ride-hailing
+                  
     ("grabcar standard", "Transport"),
     ("grab ride", "Transport"),
     ("grab premium", "Transport"),
@@ -388,7 +388,7 @@ TRAINING_DATA = [
     ("bluecab taxi", "Transport"),
     ("maxicab booking", "Transport"),
 
-    # Public Transport
+                      
     ("ezlink topup", "Transport"),
     ("simplygo fare", "Transport"),
     ("mrt fare", "Transport"),
@@ -398,7 +398,7 @@ TRAINING_DATA = [
     ("transit link topup", "Transport"),
     ("mrt monthly pass", "Transport"),
 
-    # Fuel
+          
     ("shell v power petrol", "Transport"),
     ("shell fuelsave 95", "Transport"),
     ("esso petrol 95", "Transport"),
@@ -409,7 +409,7 @@ TRAINING_DATA = [
     ("petrol pump 98", "Transport"),
     ("diesel pump full tank", "Transport"),
 
-    # Parking & ERP
+                   
     ("erp charge", "Transport"),
     ("hdb parking coupon", "Transport"),
     ("parking season", "Transport"),
@@ -420,7 +420,7 @@ TRAINING_DATA = [
     ("airport taxi surcharge", "Transport"),
     ("changi airport transfer", "Transport"),
 
-    # Car-related
+                 
     ("motor insurance", "Transport"),
     ("road tax renewal", "Transport"),
     ("vehicle servicing", "Transport"),
@@ -429,7 +429,7 @@ TRAINING_DATA = [
     ("car wash", "Transport"),
     ("touch n go topup", "Transport"),
 
-    # Merchant names
+                    
     ("grab", "Transport"),
     ("gojek", "Transport"),
     ("comfortdelgro", "Transport"),
@@ -437,12 +437,12 @@ TRAINING_DATA = [
     ("esso", "Transport"),
     ("caltex", "Transport"),
 
-    # ============================================================
-    # HEALTHCARE
-    # Medicine, clinic visits, dental, health products
-    # ============================================================
+                                                                  
+                
+                                                      
+                                                                  
 
-    # OTC Medicine
+                  
     ("panadol extra 20s", "Healthcare"),
     ("panadol actifast", "Healthcare"),
     ("paracetamol 500mg", "Healthcare"),
@@ -464,7 +464,7 @@ TRAINING_DATA = [
     ("band aid plasters", "Healthcare"),
     ("sterile gauze pads", "Healthcare"),
 
-    # Vitamins & Supplements
+                            
     ("vitamin c 1000mg", "Healthcare"),
     ("vitamin d3 supplements", "Healthcare"),
     ("vitamin b complex", "Healthcare"),
@@ -478,7 +478,7 @@ TRAINING_DATA = [
     ("glucosamine tablets", "Healthcare"),
     ("ensure nutritional drink", "Healthcare"),
 
-    # Medical Consultations
+                           
     ("gp clinic consultation", "Healthcare"),
     ("medical consultation fee", "Healthcare"),
     ("specialist consultation", "Healthcare"),
@@ -493,7 +493,7 @@ TRAINING_DATA = [
     ("chiropractic session", "Healthcare"),
     ("mental health consultation", "Healthcare"),
 
-    # Dental
+            
     ("dental consultation fee", "Healthcare"),
     ("scaling and polishing", "Healthcare"),
     ("tooth extraction fee", "Healthcare"),
@@ -504,7 +504,7 @@ TRAINING_DATA = [
     ("teeth whitening", "Healthcare"),
     ("dental xray", "Healthcare"),
 
-    # Vision
+            
     ("eye test consultation", "Healthcare"),
     ("spectacle lenses", "Healthcare"),
     ("contact lens monthly", "Healthcare"),
@@ -512,7 +512,7 @@ TRAINING_DATA = [
     ("eye drops refresh", "Healthcare"),
     ("systane eye drops", "Healthcare"),
 
-    # Medical Equipment
+                       
     ("thermometer digital", "Healthcare"),
     ("blood pressure monitor", "Healthcare"),
     ("oximeter", "Healthcare"),
@@ -524,7 +524,7 @@ TRAINING_DATA = [
     ("glucose test strips", "Healthcare"),
     ("hearing aid battery", "Healthcare"),
 
-    # Merchant names
+                    
     ("guardian pharmacy", "Healthcare"),
     ("watsons pharmacy", "Healthcare"),
     ("unity pharmacy", "Healthcare"),
@@ -533,12 +533,12 @@ TRAINING_DATA = [
     ("raffles medical", "Healthcare"),
     ("parkway health", "Healthcare"),
 
-    # ============================================================
-    # ENTERTAINMENT
-    # Streaming, games, events, recreational activities
-    # ============================================================
+                                                                  
+                   
+                                                       
+                                                                  
 
-    # Streaming
+               
     ("netflix monthly", "Entertainment"),
     ("netflix premium plan", "Entertainment"),
     ("spotify premium", "Entertainment"),
@@ -551,7 +551,7 @@ TRAINING_DATA = [
     ("mubi subscription", "Entertainment"),
     ("twitch subscription", "Entertainment"),
 
-    # Gaming
+            
     ("steam wallet topup", "Entertainment"),
     ("steam game purchase", "Entertainment"),
     ("epic games purchase", "Entertainment"),
@@ -569,7 +569,7 @@ TRAINING_DATA = [
     ("game controller", "Entertainment"),
     ("gaming headset", "Entertainment"),
 
-    # Cinema & Events
+                     
     ("golden village ticket", "Entertainment"),
     ("cathay cineplex ticket", "Entertainment"),
     ("shaw theatres ticket", "Entertainment"),
@@ -587,7 +587,7 @@ TRAINING_DATA = [
     ("science centre ticket", "Entertainment"),
     ("art science museum", "Entertainment"),
 
-    # Recreational
+                  
     ("karaoke room nett price", "Entertainment"),
     ("k box session", "Entertainment"),
     ("manekineko karaoke", "Entertainment"),
@@ -605,7 +605,7 @@ TRAINING_DATA = [
     ("golf driving range", "Entertainment"),
     ("cycling rental", "Entertainment"),
 
-    # Books & Media
+                   
     ("kindle book purchase", "Entertainment"),
     ("audible subscription", "Entertainment"),
     ("scribd subscription", "Entertainment"),
@@ -617,12 +617,12 @@ TRAINING_DATA = [
     ("times bookstore purchase", "Entertainment"),
     ("kinokuniya book", "Entertainment"),
 
-    # ============================================================
-    # UTILITIES
-    # Bills, telco, internet, home services
-    # ============================================================
+                                                                  
+               
+                                           
+                                                                  
 
-    # Telco
+           
     ("singtel mobile bill", "Utilities"),
     ("singtel postpaid plan", "Utilities"),
     ("starhub mobile bill", "Utilities"),
@@ -638,7 +638,7 @@ TRAINING_DATA = [
     ("prepaid topup singtel", "Utilities"),
     ("prepaid topup m1", "Utilities"),
 
-    # Internet & TV
+                   
     ("singtel broadband bill", "Utilities"),
     ("starhub cable tv", "Utilities"),
     ("starhub broadband", "Utilities"),
@@ -648,7 +648,7 @@ TRAINING_DATA = [
     ("wifi router plan", "Utilities"),
     ("cable tv subscription", "Utilities"),
 
-    # Electricity & Water
+                         
     ("sp services electricity", "Utilities"),
     ("sp utilities bill", "Utilities"),
     ("electricity bill monthly", "Utilities"),
@@ -657,7 +657,7 @@ TRAINING_DATA = [
     ("city gas bill", "Utilities"),
     ("conservancy charges", "Utilities"),
 
-    # Home Services
+                   
     ("aircon servicing", "Utilities"),
     ("aircon chemical wash", "Utilities"),
     ("plumber service call", "Utilities"),
@@ -667,12 +667,12 @@ TRAINING_DATA = [
     ("home cleaning", "Utilities"),
     ("maid agency fee", "Utilities"),
 
-    # ============================================================
-    # SHOPPING
-    # Clothing, electronics, furniture, household goods
-    # ============================================================
+                                                                  
+              
+                                                       
+                                                                  
 
-    # Clothing
+              
     ("uniqlo tshirt", "Shopping"),
     ("uniqlo shorts", "Shopping"),
     ("uniqlo linen shirt", "Shopping"),
@@ -694,7 +694,7 @@ TRAINING_DATA = [
     ("levi jeans", "Shopping"),
     ("wrangler jeans", "Shopping"),
 
-    # Footwear
+              
     ("nike running shoes", "Shopping"),
     ("adidas ultraboost", "Shopping"),
     ("new balance 574", "Shopping"),
@@ -706,7 +706,7 @@ TRAINING_DATA = [
     ("clarks casual shoes", "Shopping"),
     ("timberland boots", "Shopping"),
 
-    # Electronics & Tech
+                        
     ("mechanical keyboard", "Shopping"),
     ("wireless mouse logitech", "Shopping"),
     ("usb c cable", "Shopping"),
@@ -725,7 +725,7 @@ TRAINING_DATA = [
     ("portable charger", "Shopping"),
     ("extension cord", "Shopping"),
 
-    # Furniture & Home
+                      
     ("ikea shelf billy", "Shopping"),
     ("ikea desk alex", "Shopping"),
     ("ikea chair", "Shopping"),
@@ -739,7 +739,7 @@ TRAINING_DATA = [
     ("bedsheet set", "Shopping"),
     ("pillow cover pair", "Shopping"),
 
-    # Sports Equipment
+                      
     ("decathlon badminton racket", "Shopping"),
     ("decathlon yoga mat", "Shopping"),
     ("decathlon resistance band", "Shopping"),
@@ -749,7 +749,7 @@ TRAINING_DATA = [
     ("gym gloves", "Shopping"),
     ("jump rope", "Shopping"),
 
-    # Stationery & Office
+                         
     ("muji pen set", "Shopping"),
     ("posca marker set", "Shopping"),
     ("zebra highlighters", "Shopping"),
@@ -759,7 +759,7 @@ TRAINING_DATA = [
     ("file folder", "Shopping"),
     ("ring binder", "Shopping"),
 
-    # Merchant names
+                    
     ("uniqlo", "Shopping"),
     ("muji", "Shopping"),
     ("ikea", "Shopping"),
@@ -778,12 +778,12 @@ TRAINING_DATA = [
     ("shopee mall", "Shopping"),
     ("lazada official store", "Shopping"),
 
-    # ============================================================
-    # EDUCATION
-    # School, courses, tuition, learning materials
-    # ============================================================
+                                                                  
+               
+                                                  
+                                                                  
 
-    # School Supplies
+                     
     ("textbook secondary", "Education"),
     ("revision guide", "Education"),
     ("assessment book", "Education"),
@@ -797,7 +797,7 @@ TRAINING_DATA = [
     ("geometry set", "Education"),
     ("colour pencils set", "Education"),
 
-    # Tuition & Courses
+                       
     ("tuition fee monthly", "Education"),
     ("enrichment class fee", "Education"),
     ("english tuition", "Education"),
@@ -814,7 +814,7 @@ TRAINING_DATA = [
     ("theory test fee", "Education"),
     ("driving test fee", "Education"),
 
-    # Higher Education & Online
+                               
     ("coursera subscription", "Education"),
     ("udemy course purchase", "Education"),
     ("skillsfuture course fee", "Education"),
@@ -827,18 +827,18 @@ TRAINING_DATA = [
     ("ielts exam fee", "Education"),
     ("toefl registration", "Education"),
 
-    # Printing & Stationery
+                           
     ("printing service a4", "Education"),
     ("binding service", "Education"),
     ("lamination service", "Education"),
     ("photocopy service", "Education"),
 
-    # ============================================================
-    # PERSONAL CARE
-    # Haircare, skincare, grooming, beauty
-    # ============================================================
+                                                                  
+                   
+                                          
+                                                                  
 
-    # Hair Care
+               
     ("head shoulders shampoo", "Personal Care"),
     ("dove shampoo moisture", "Personal Care"),
     ("pantene conditioner", "Personal Care"),
@@ -855,7 +855,7 @@ TRAINING_DATA = [
     ("hair colour salon", "Personal Care"),
     ("rebonding treatment", "Personal Care"),
 
-    # Skin Care
+               
     ("cetaphil gentle cleanser", "Personal Care"),
     ("cerave face wash", "Personal Care"),
     ("hada labo moisturiser", "Personal Care"),
@@ -872,14 +872,14 @@ TRAINING_DATA = [
     ("exfoliating scrub", "Personal Care"),
     ("face mask sheet", "Personal Care"),
 
-    # Body Care
+               
     ("dove body wash", "Personal Care"),
     ("lifebuoy body wash", "Personal Care"),
     ("nivea body lotion", "Personal Care"),
     ("vaseline body lotion", "Personal Care"),
     ("palmolive shower gel", "Personal Care"),
 
-    # Oral Care
+               
     ("colgate toothpaste 3pack", "Personal Care"),
     ("sensodyne toothpaste", "Personal Care"),
     ("oral b toothbrush", "Personal Care"),
@@ -887,7 +887,7 @@ TRAINING_DATA = [
     ("floss picks pack", "Personal Care"),
     ("whitening strips", "Personal Care"),
 
-    # Grooming
+              
     ("gillette razor blades", "Personal Care"),
     ("schick razor", "Personal Care"),
     ("shaving foam", "Personal Care"),
@@ -898,7 +898,7 @@ TRAINING_DATA = [
     ("cotton pads pack", "Personal Care"),
     ("cotton buds box", "Personal Care"),
 
-    # Makeup
+            
     ("maybelline foundation", "Personal Care"),
     ("loreal lipstick", "Personal Care"),
     ("revlon mascara", "Personal Care"),
@@ -909,7 +909,7 @@ TRAINING_DATA = [
     ("makeup remover wipes", "Personal Care"),
     ("micellar water", "Personal Care"),
 
-    # Nail & Spa
+                
     ("nail salon manicure", "Personal Care"),
     ("nail salon pedicure", "Personal Care"),
     ("gel nail set", "Personal Care"),
@@ -919,16 +919,16 @@ TRAINING_DATA = [
     ("eyebrow threading", "Personal Care"),
     ("waxing service", "Personal Care"),
 
-    # Feminine Care
+                   
     ("sofy sanitary pads", "Personal Care"),
     ("whisper sanitary pads", "Personal Care"),
     ("tampons pack", "Personal Care"),
     ("intimate wash", "Personal Care"),
 
-    # ============================================================
-    # OTHER
-    # Miscellaneous items that don't fit elsewhere
-    # ============================================================
+                                                                  
+           
+                                                  
+                                                                  
     ("singpost postage stamp", "Other"),
     ("shopee checkout", "Other"),
     ("lazada merchant", "Other"),

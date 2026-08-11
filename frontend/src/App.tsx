@@ -32,10 +32,10 @@ interface ReceiptRecord {
 
 type View = 'upload' | 'history' | 'dashboard';
 
-// Reading dynamic environmental base variable safely
+
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Dynamic Category Colors mapped alongside modern accessible icons
+
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; hex: string; icon: string }> = {
   'Food & Beverage': { bg: 'rgba(249,115,22,0.12)', text: '#fb923c', hex: '#f97316', icon: '🍔' },
   'Groceries':       { bg: 'rgba(34,197,94,0.12)',  text: '#4ade80', hex: '#22c55e', icon: '🛒' },
@@ -121,7 +121,7 @@ function App() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting]               = useState(false);
 
-  /* Receipt Splitting Core States */
+  
   const [showSplitPanel, setShowSplitPanel] = useState(false);
   const [friendsList, setFriendsList]       = useState<Participant[]>([]);
   const [friendSearchEmail, setFriendSearchEmail] = useState('');
@@ -130,7 +130,7 @@ function App() {
   const [splitResult, setSplitResult]       = useState<any | null>(null);
   const [calculatingSplit, setCalculatingSplit] = useState(false);
 
-  /* Live AI Feedback Journey States */
+  
   const [scanStep, setScanStep] = useState<number>(0);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualEntryText, setManualEntryText] = useState('');
@@ -454,16 +454,14 @@ const handleDeleteSelected = async () => {
           background-color: #07111F;
         }
 
-        /* ============================================================
-           FINTRACE ORIGINAL DIGITAL ACCOUNTING CANVAS BACKGROUND
-           ============================================================ */
+        
         .fintrace-bg {
           position: fixed;
           inset: 0;
           z-index: 0; 
           overflow: hidden;
           background-color: #07111F;
-          /* Accounting Ledger grid layout structure */
+          
           background-image:
             linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
             linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
@@ -471,7 +469,7 @@ const handleDeleteSelected = async () => {
           pointer-events: none;
         }
 
-        /* Soft Vignette and lighting variations without floating blobs */
+        
         .fintrace-bg::before {
           content: "";
           position: absolute;
@@ -480,7 +478,7 @@ const handleDeleteSelected = async () => {
           pointer-events: none;
         }
 
-        /* Subtle Receipt Paper Grain Texture */
+        
         .fintrace-grain {
           position: absolute;
           inset: 0;
@@ -489,7 +487,7 @@ const handleDeleteSelected = async () => {
           pointer-events: none;
         }
 
-        /* Ultra-low opacity receipt fragment watermarks */
+        
         .receipt-watermark {
           position: absolute;
           font-family: 'JetBrains Mono', monospace;
@@ -501,7 +499,7 @@ const handleDeleteSelected = async () => {
           white-space: nowrap;
         }
 
-        /* Transaction Tracing Line Paths */
+        
         .fintrace-traces {
           position: absolute;
           inset: 0;
@@ -521,7 +519,7 @@ const handleDeleteSelected = async () => {
           opacity: 0.06;
         }
 
-        /* Premium Modern Minimal Foreground Cards */
+        
         .workspace-card {
           background: #111827;
           border: 1px solid rgba(255, 255, 255, 0.06);
@@ -529,7 +527,7 @@ const handleDeleteSelected = async () => {
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
 
-        /* Authentic Monospaced White Paper Receipt UI */
+        
         .receipt-paper-card {
           background: #F9FAFB;
           color: #111827;
@@ -633,11 +631,11 @@ const handleDeleteSelected = async () => {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* Background layer engine */}
+      
       <div className="fintrace-bg">
         <div className="fintrace-grain" />
 
-        {/* Scattered Low Opacity Subconscious Financial Markers & Emoticons */}
+        
         <div className="receipt-watermark" style={{ top: '10%', left: '5%', transform: 'rotate(-8deg)', fontSize: '13px' }}>🧾 TOTAL $12.90</div>
         <div className="receipt-watermark" style={{ top: '15%', right: '12%', transform: 'rotate(5deg)', fontSize: '12px' }}>SUBTOTAL 🧾</div>
         <div className="receipt-watermark" style={{ top: '45%', left: '80%', transform: 'rotate(-15deg)', fontSize: '14px' }}>🧾 VISA **** 4412</div>
@@ -645,20 +643,20 @@ const handleDeleteSelected = async () => {
         <div className="receipt-watermark" style={{ top: '85%', right: '20%', transform: 'rotate(-4deg)', fontSize: '12px' }}>QTY: 04 ITEM 🧾</div>
         <div className="receipt-watermark" style={{ top: '28%', left: '72%', transform: 'rotate(18deg)', fontSize: '13px' }}>🧾 GST INCLUDED</div>
 
-        {/* Audit Trail Signature Lifecycle Tracing System Lines */}
+        
         <svg className="fintrace-traces">
-          {/* Main Transaction Lifecycle Flow Path */}
+          
           <path className="trace-path" d="M 100,200 L 250,200 L 250,450 L 600,450 L 600,750" />
           <path className="trace-path-highlight" d="M 100,200 L 250,200 L 250,450 L 600,450 L 600,750" strokeDasharray="5 5" />
           
-          {/* Natural winding audit path system structures */}
+          
           <path className="trace-path" d="M 750,100 Q 820,300 680,500 T 800,900" />
           
-          {/* Process flow indicator markers (Implying Upload -> OCR -> Categorize -> Dashboard lifecycle) */}
-          <circle cx="100" cy="200" r="4" fill="#07111F" stroke="#10B981" strokeWidth="2" /> {/* Node 1: Circle */}
-          <rect x="246" y="446" width="8" height="8" fill="#07111F" stroke="#f8fafc" strokeWidth="1.5" /> {/* Node 2: Square */}
           
-          {/* Node 3: Dotted Ledger Barcode mark indicator */}
+          <circle cx="100" cy="200" r="4" fill="#07111F" stroke="#10B981" strokeWidth="2" /> {}
+          <rect x="246" y="446" width="8" height="8" fill="#07111F" stroke="#f8fafc" strokeWidth="1.5" /> {}
+          
+          
           <g transform="translate(595, 745)">
             <line x1="0" y1="0" x2="10" y2="0" stroke="#10B981" strokeWidth="2" />
             <line x1="0" y1="3" x2="6" y2="3" stroke="#ffffff" strokeWidth="1.5" />
@@ -667,7 +665,7 @@ const handleDeleteSelected = async () => {
         </svg>
       </div>
 
-      {/* Main Foreground Container Layer explicit stacking context separation */}
+      
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh' }}>
         {toast && (
           <div style={{ position: 'fixed', top: 24, right: 24, zIndex: 9999, background: '#111827', border: '1px solid #10b981', borderRadius: 12, padding: '14px 20px', color: '#f8fafc', fontSize: 14, fontWeight: 500 }}>
@@ -696,7 +694,7 @@ const handleDeleteSelected = async () => {
         <SignedIn>
           <div style={{ maxWidth: 640, margin: '0 auto', padding: '40px 20px 100px' }}>
             
-            {/* Header */}
+            
             <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }} className="animate-fade">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ display: 'flex', background: '#10b981', borderRadius: 10, padding: 8, color: '#fff' }}>
@@ -710,7 +708,7 @@ const handleDeleteSelected = async () => {
               </div>
             </header>
 
-            {/* Navigation Tabbed Interface */}
+            
             <nav style={{ display: 'flex', gap: 6, background: 'rgba(17, 24, 39, 0.6)', borderRadius: 14, padding: 6, border: '1px solid rgba(255, 255, 255, 0.06)', marginBottom: 32 }} className="animate-fade">
               {NAV_ITEMS.map(({ id, label, renderIcon: Icon }) => (
                 <button key={id} className={`nav-link ${view === id ? 'active' : ''}`} onClick={() => handleNavClick(id)}>
@@ -719,12 +717,12 @@ const handleDeleteSelected = async () => {
               ))}
             </nav>
 
-            {/* ── UPLOAD VIEW ── */}
+            
             {view === 'upload' && (
               <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {!isEditing && (
                   <>
-                    {/* Humanized Financial Snapshot Welcomer Area */}
+                    {}
                     <div className="workspace-card" style={{ padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                       <div>
                         <h3 style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc' }}>Hey, {user?.firstName || 'there'} 👋</h3>
@@ -738,7 +736,7 @@ const handleDeleteSelected = async () => {
                       </div>
                     </div>
 
-                    {/* Drag and Drop Container Workspace Area */}
+                    
                     <div 
                       className="workspace-card scanner-container" 
                       onDragOver={handleDragOver}
@@ -806,7 +804,7 @@ const handleDeleteSelected = async () => {
                       )}
                     </div>
 
-                    {/* Contextual Active AI Reading Timeline feedback */}
+                    
                     {loading && (
                       <div className="workspace-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -829,7 +827,7 @@ const handleDeleteSelected = async () => {
                   </>
                 )}
 
-                {/* Physical Receipt Presentation Mode Interface */}
+                
                 {isEditing && receipt && (
                   <div className="receipt-paper-card" style={{ padding: '36px 28px 28px', animation: 'fadeIn 0.3s ease' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px dashed #D1D5DB', paddingBottom: 12 }}>
@@ -840,7 +838,7 @@ const handleDeleteSelected = async () => {
                       <button onClick={() => { setIsEditing(false); setReceipt(null); setSelectedFile(null); setParsedItems([]); setShowSplitPanel(false); }} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 18, position: 'absolute', right: 24, top: 34 }}>✕</button>
                     </div>
 
-                    {/* Raw Input Window */}
+                    
                     <div style={{ background: '#F3F4F6', borderRadius: 8, overflow: 'hidden', marginBottom: 20, border: '1px solid #E5E7EB' }}>
                       <div style={{ padding: '8px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>ORIGINAL TEXT</span>
@@ -856,7 +854,7 @@ const handleDeleteSelected = async () => {
                       />
                     </div>
 
-                    {/* Actions Grid */}
+                    
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>ITEMS</span>
                       <button onClick={() => setShowSplitPanel(!showSplitPanel)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'transparent', color: '#2563EB', border: '1px solid #93C5FD', cursor: 'pointer', fontWeight: 600 }}>
@@ -864,7 +862,7 @@ const handleDeleteSelected = async () => {
                       </button>
                     </div>
 
-                    {/* Split Allocations Block */}
+                    
                     {showSplitPanel && (
                       <div style={{ background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, padding: 14, marginBottom: 20 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#111827', marginBottom: 8 }}>SPLIT WITH</div>
@@ -905,7 +903,7 @@ const handleDeleteSelected = async () => {
                       </div>
                     )}
 
-                    {/* Monospaced Receipt Grid */}
+                    
                     {parsedItems.length > 0 && (
                       <div style={{ borderBottom: '1px dashed #D1D5DB', marginBottom: 20, paddingBottom: 10 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -975,7 +973,7 @@ const handleDeleteSelected = async () => {
               </div>
             )}
 
-            {/* ── HISTORY VIEW ── */}
+            
             {view === 'history' && (
               <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1133,7 +1131,7 @@ const handleDeleteSelected = async () => {
               </div>
             )}
 
-            {/* ── DASHBOARD VIEW ── */}
+            
             {view === 'dashboard' && (
               <div className="animate-fade">
                 <SpendingDashboard userId={user?.id || ''} />

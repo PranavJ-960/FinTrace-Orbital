@@ -167,7 +167,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
   return (
     <div style={styles.container}>
 
-      {/* Report Download Card */}
+      {}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: 20, background: '#0f172a', border: '1px solid #1e293b',
@@ -210,7 +210,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       </div>
 
-      {/* Anomaly Alert */}
+      {}
       {data.anomalies && data.anomalies.length > 0 ? (
         <div style={styles.alertCard}>
           <div style={styles.alertTitle}>⚠️ Spending spike detected</div>
@@ -230,7 +230,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Stat Cards */}
+      {}
       <div style={styles.statsRow}>
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Total Spent</div>
@@ -260,7 +260,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       </div>
 
-      {/* Tab Bar */}
+      {}
       <div style={styles.tabBar}>
         {(['overview', 'categories', 'breakdown'] as const).map((tab) => (
           <button
@@ -273,7 +273,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         ))}
       </div>
 
-      {/* Overview Tab */}
+      {}
       {activeTab === 'overview' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Spending Trend</div>
@@ -298,7 +298,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Categories Tab */}
+      {}
       {activeTab === 'categories' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Spending by Category</div>
@@ -333,7 +333,7 @@ export default function SpendingDashboard({ userId, months = 6 }: { userId: stri
         </div>
       )}
 
-      {/* Breakdown Tab */}
+      {}
       {activeTab === 'breakdown' && (
         <div style={styles.chartCard}>
           <div style={styles.chartTitle}>Monthly Breakdown by Category</div>

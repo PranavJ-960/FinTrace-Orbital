@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
-# Machine Learning & Google Gemini AI Imports
+                                             
 from dataset import TRAINING_DATA
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -225,7 +225,7 @@ async def download_report(user_id: str):
 
         elements = []
 
-        # Color Palette
+                       
         PRIMARY_BLUE = colors.HexColor('#3b82f6')
         ACCENT_EMERALD = colors.HexColor('#10b981')
         TEXT_LIGHT = colors.HexColor('#f8fafc')
@@ -235,7 +235,7 @@ async def download_report(user_id: str):
         ROW_ALT = colors.HexColor('#111827')
         BORDER_COLOR = colors.HexColor('#334155')
 
-        # Typography Styles
+                           
         title_style = ParagraphStyle('DocTitle', fontSize=22, fontName='Helvetica-Bold', textColor=PRIMARY_BLUE, spaceAfter=2)
         sub_style = ParagraphStyle('DocSub', fontSize=10, fontName='Helvetica', textColor=TEXT_MUTED, spaceAfter=14)
         section_style = ParagraphStyle('DocSection', fontSize=10, fontName='Helvetica-Bold', textColor=TEXT_MUTED, spaceBefore=14, spaceAfter=8)
@@ -248,13 +248,13 @@ async def download_report(user_id: str):
         cell_text_right = ParagraphStyle('CellRight', fontSize=9, fontName='Helvetica-Bold', textColor=TEXT_LIGHT, alignment=2)
         cell_text_right_muted = ParagraphStyle('CellRightMuted', fontSize=9, fontName='Helvetica', textColor=TEXT_MUTED, alignment=2)
 
-        # Header Section
+                        
         elements.append(Paragraph("FinTrace Insights", title_style))
         elements.append(Spacer(1, 15))
         elements.append(Paragraph(f"Financial Fingerprint Statement — Generated {datetime.now().strftime('%b %d, %Y')}", sub_style))
         elements.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=14))
 
-        # Anomaly Alert Box
+                           
         if anomalies:
             alert_text = Paragraph(
                 f"⚠️ <b>SPENDING SPIKE DETECTED:</b> In {anomalies[0]['month']}, total reached <b>${anomalies[0]['total']:.2f}</b> "
@@ -273,7 +273,7 @@ async def download_report(user_id: str):
             elements.append(alert_table)
             elements.append(Spacer(1, 10))
 
-        # Overview Stats Cards
+                              
         elements.append(Paragraph("EXECUTIVE OVERVIEW", section_style))
         stat_data = [
             [Paragraph('TOTAL VOLUME', stat_label_style), Paragraph('MONTHLY AVERAGE', stat_label_style), Paragraph('ACTIVE WINDOWS', stat_label_style)],
@@ -290,7 +290,7 @@ async def download_report(user_id: str):
         elements.append(stat_table)
         elements.append(Spacer(1, 12))
 
-        # Category Breakdown Table
+                                  
         elements.append(Paragraph("SPENDING DISTRIBUTION BY CATEGORY", section_style))
         cat_data = [[
             Paragraph('Category', cell_text_bold), 
@@ -320,7 +320,7 @@ async def download_report(user_id: str):
         elements.append(cat_table)
         elements.append(Spacer(1, 12))
 
-        # Monthly Breakdown Table
+                                 
         if monthly_list:
             elements.append(Paragraph("HISTORICAL MONTHLY SUMMARY", section_style))
             month_data = [[
@@ -345,7 +345,7 @@ async def download_report(user_id: str):
             ]))
             elements.append(month_table)
 
-        # Footer
+                
         elements.append(Spacer(1, 20))
         elements.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=8))
         elements.append(Paragraph(
@@ -561,8 +561,8 @@ async def delete_receipts(payload: DeleteReceiptsRequest):
     try:
         conn = get_db()
         cur = conn.cursor()
-        # Only delete receipts the user actually owns — prevents a shared
-        # recipient from deleting someone else's uploaded receipt.
+                                                                         
+                                                                  
         cur.execute(
             """
             DELETE FROM receipts

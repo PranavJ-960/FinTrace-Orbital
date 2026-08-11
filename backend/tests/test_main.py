@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 from main import app, detect_spending_anomalies
 
 
-# ---------------------------------------------------------------------------
-# Shared fakes / fixtures
-# ---------------------------------------------------------------------------
+                                                                             
+                         
+                                                                             
 
 class FakeCursor:
     def __init__(self, responses=None):
@@ -63,9 +63,9 @@ def patch_db(monkeypatch):
     return fake_cursor
 
 
-# ---------------------------------------------------------------------------
-# Anomaly detection (pure function, no DB)
-# ---------------------------------------------------------------------------
+                                                                             
+                                          
+                                                                             
 
 def test_detects_large_monthly_spending_spike():
     monthly_totals = [
@@ -93,9 +93,9 @@ def test_ignores_normal_months():
     assert anomalies == []
 
 
-# ---------------------------------------------------------------------------
-# /api/save
-# ---------------------------------------------------------------------------
+                                                                             
+           
+                                                                             
 
 def test_save_receipt_success(monkeypatch):
     cursor = FakeCursor(responses=[(123,)])
@@ -157,8 +157,8 @@ def test_save_receipt_with_split_distribution(monkeypatch):
 
 
 def test_save_receipt_no_split_computes_estimated_total(monkeypatch):
-    # Covers the "manual add receipt" flow: no split_distribution provided,
-    # so the code should sum parsed_items itself and mark the user as owner.
+                                                                           
+                                                                            
     cursor = FakeCursor(responses=[(999,)])
     conn = FakeConnection(cursor)
     monkeypatch.setattr('main.get_db', lambda: conn)
@@ -175,15 +175,15 @@ def test_save_receipt_no_split_computes_estimated_total(monkeypatch):
     response = client.post('/api/save', json=payload)
     assert response.status_code == 200
 
-    # second query is the receipt_shares insert; check the amount_owed param
+                                                                            
     shares_params = cursor.params[1]
-    assert shares_params[2] == 15.5  # 10.0 + 5.5
-    assert shares_params[3] is True  # is_owner
+    assert shares_params[2] == 15.5              
+    assert shares_params[3] is True            
 
 
-# ---------------------------------------------------------------------------
-# /api/receipts (GET / DELETE)
-# ---------------------------------------------------------------------------
+                                                                             
+                              
+                                                                             
 
 def test_get_receipts_returns_expected_data(monkeypatch):
     rows = [
@@ -226,7 +226,7 @@ def test_get_receipts_returns_empty_list(monkeypatch):
 
 
 def test_delete_receipts_success(monkeypatch):
-    cursor = FakeCursor(responses=[[(1,), (2,)]])  # rows returned by RETURNING id
+    cursor = FakeCursor(responses=[[(1,), (2,)]])                                 
     conn = FakeConnection(cursor)
     monkeypatch.setattr('main.get_db', lambda: conn)
 
@@ -250,8 +250,8 @@ def test_delete_receipts_empty_ids_returns_400():
 
 
 def test_delete_receipts_ignores_non_owned_receipts(monkeypatch):
-    # User tries to delete a receipt they don't own. The query filters by
-    # user_id = owner, so RETURNING id comes back empty -- no error, just 0 deleted.
+                                                                         
+                                                                                    
     cursor = FakeCursor(responses=[[]])
     conn = FakeConnection(cursor)
     monkeypatch.setattr('main.get_db', lambda: conn)
@@ -276,9 +276,9 @@ def test_delete_receipts_db_error_returns_500(monkeypatch):
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/spending-summary
-# ---------------------------------------------------------------------------
+                                                                             
+                       
+                                                                             
 
 def test_get_spending_summary_returns_expected_structure(monkeypatch):
     monthly_rows = [
@@ -334,9 +334,9 @@ def test_get_spending_summary_empty_returns_defaults(monkeypatch):
     assert data['anomalies'] == []
 
 
-# ---------------------------------------------------------------------------
-# /api/download-report
-# ---------------------------------------------------------------------------
+                                                                             
+                      
+                                                                             
 
 def test_download_report_success(monkeypatch):
     monthly_rows = [
@@ -357,7 +357,7 @@ def test_download_report_success(monkeypatch):
 
 
 def test_download_report_no_data_does_not_crash(monkeypatch):
-    # month_count = max(len(monthly_list), 1) guards div-by-zero -- verify it holds
+                                                                                   
     cursor = FakeCursor(responses=[[]])
     conn = FakeConnection(cursor)
     monkeypatch.setattr('main.get_db', lambda: conn)
@@ -377,9 +377,9 @@ def test_download_report_db_error_returns_500(monkeypatch):
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/update-preference
-# ---------------------------------------------------------------------------
+                                                                             
+                        
+                                                                             
 
 def test_update_preference_success(monkeypatch):
     cursor = FakeCursor()
@@ -407,9 +407,9 @@ def test_update_preference_db_error_returns_500(monkeypatch):
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/search-friend
-# ---------------------------------------------------------------------------
+                                                                             
+                    
+                                                                             
 
 def test_search_friend_found(monkeypatch):
     row = ('Alice', 'user-123', 'alice@example.com')
@@ -428,7 +428,7 @@ def test_search_friend_found(monkeypatch):
         'clerk_id': 'user-123',
         'email': 'alice@example.com'
     }
-    # verify email was normalized before hitting the query
+                                                          
     assert cursor.params[0][0] == 'alice@example.com'
 
 
@@ -454,9 +454,9 @@ def test_search_friend_db_error_returns_500(monkeypatch):
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/sync-user
-# ---------------------------------------------------------------------------
+                                                                             
+                
+                                                                             
 
 def test_sync_user_success(monkeypatch):
     cursor = FakeCursor()
@@ -473,7 +473,7 @@ def test_sync_user_success(monkeypatch):
     assert response.status_code == 200
     assert response.json() == {'success': True}
     assert conn.committed
-    # verify email got normalized before insert
+                                               
     params = cursor.params[0]
     assert params[1] == 'alice@example.com'
 
@@ -491,7 +491,7 @@ def test_sync_user_defaults_display_name_from_email(monkeypatch):
 
     assert response.status_code == 200
     params = cursor.params[0]
-    assert params[2] == 'bob'  # display_name derived from email prefix
+    assert params[2] == 'bob'                                          
 
 
 def test_sync_user_missing_clerk_id_returns_400():
@@ -520,9 +520,9 @@ def test_sync_user_db_error_returns_500(monkeypatch):
     assert response.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/split-receipt
-# ---------------------------------------------------------------------------
+                                                                             
+                    
+                                                                             
 
 def test_split_receipt_even_split_no_assignment():
     client = TestClient(app)
@@ -563,7 +563,7 @@ def test_split_receipt_specific_assignment():
 
 
 def test_split_receipt_adjustment_proportional_to_subtotal():
-    # u1 has 3x the subtotal of u2, so should absorb 3x the tax/tip
+                                                                   
     client = TestClient(app)
     payload = {
         'items': [
@@ -574,13 +574,13 @@ def test_split_receipt_adjustment_proportional_to_subtotal():
             {'clerk_id': 'u1', 'display_name': 'Alice'},
             {'clerk_id': 'u2', 'display_name': 'Bob'}
         ],
-        'adjustment': 8.0  # e.g. tax + tip
+        'adjustment': 8.0                  
     }
     response = client.post('/api/split-receipt', json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data['grand_total'] == 48.0
-    # u1: 30/40 * 8 = 6.0, u2: 10/40 * 8 = 2.0
+                                              
     assert data['breakdown']['u1']['adjustment_share'] == 6.0
     assert data['breakdown']['u2']['adjustment_share'] == 2.0
     assert data['breakdown']['u1']['total'] == 36.0
@@ -588,7 +588,7 @@ def test_split_receipt_adjustment_proportional_to_subtotal():
 
 
 def test_split_receipt_no_items_splits_adjustment_equally():
-    # total_item_cost == 0 -> falls into the equal-split guard branch
+                                                                     
     client = TestClient(app)
     payload = {
         'items': [],
@@ -606,8 +606,8 @@ def test_split_receipt_no_items_splits_adjustment_equally():
 
 
 def test_split_receipt_ignores_unknown_assigned_ids():
-    # assignedToIds references someone not in participants -- should not crash,
-    # that share is effectively dropped
+                                                                               
+                                       
     client = TestClient(app)
     payload = {
         'items': [{'name': 'Pizza', 'price': 20.0, 'assignedToIds': ['u1', 'ghost']}],
@@ -617,7 +617,7 @@ def test_split_receipt_ignores_unknown_assigned_ids():
     response = client.post('/api/split-receipt', json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data['breakdown']['u1']['subtotal'] == 10.0  # only u1's half is tracked
+    assert data['breakdown']['u1']['subtotal'] == 10.0                             
 
 
 def test_split_receipt_no_participants_returns_400():
@@ -631,9 +631,9 @@ def test_split_receipt_no_participants_returns_400():
     assert response.json()['detail'] == 'Participants array required.'
 
 
-# ---------------------------------------------------------------------------
-# /api/parse and /api/upload
-# ---------------------------------------------------------------------------
+                                                                             
+                            
+                                                                             
 
 def test_parse_receipt_success():
     client = TestClient(app)
